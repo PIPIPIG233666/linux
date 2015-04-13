@@ -626,7 +626,8 @@ void __init prepare_namespace(void)
 	 * for the touchpad of a laptop to initialize.
 	 */
 	async_synchronize_full();
-	wait_for_device_probe();
+	//wait_for_device_probe();
+	async_synchronize_full();
 	async_synchronize_full();
 
 	md_run_setup();
