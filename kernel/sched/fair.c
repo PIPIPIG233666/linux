@@ -6915,6 +6915,20 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int wake_flags)
 	}
 
 	rcu_read_lock();
+
+	if (cpu_rq(prev_cpu)->nr_running) {
+		int _cpu;
+
+		for_each_online_cpu(_cpu) {
+			if (!cpumask_test_cpu(_cpu, p->cpus_ptr) ||
+				cpu_rq(_cpu)->nr_running)
+				continue;
+
+			rcu_read_unlock();
+			return _cpu;
+		}
+	}
+
 	for_each_domain(cpu, tmp) {
 		/*
 		 * If both 'cpu' and 'prev_cpu' are part of this domain,
