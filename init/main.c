@@ -1529,6 +1529,7 @@ static int __ref kernel_init(void *unused)
 		       ramdisk_execute_command, ret);
 	}
 
+	printk(KERN_ERR "Executing init\n");
 	/*
 	 * We try each of these until one succeeds.
 	 *
