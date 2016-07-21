@@ -2760,6 +2760,7 @@ static struct pci_driver azx_driver = {
 	.shutdown = azx_shutdown,
 	.driver = {
 		.pm = AZX_PM_OPS,
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 
