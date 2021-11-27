@@ -6553,12 +6553,15 @@ void alc287_legion_16achg6_playback_hook(struct hda_pcm_stream *hinfo, struct hd
 	switch (action) {
 	case HDA_GEN_PCM_ACT_PREPARE:
 		rx_slot = 0;
-		i = find_comp_by_dev_name(spec, "i2c-CLSA0100:00-cs35l41-hda.0");
+		i = find_comp_by_dev_name(spec, "i2c-CLSA0100:00-cs35l41-hda.0") ||
+			find_comp_by_dev_name(spec, "i2c-CLSA0101:00-cs35l41-hda.0");
 		if (i >= 0)
 			spec->comps[i].set_channel_map(spec->comps[i].dev, 0, NULL, 1, &rx_slot);
 
 		rx_slot = 1;
-		i = find_comp_by_dev_name(spec, "i2c-CLSA0100:00-cs35l41-hda.1");
+		i = find_comp_by_dev_name(spec, "i2c-CLSA0100:00-cs35l41-hda.1") ||
+			find_comp_by_dev_name(spec, "i2c-CLSA0101:00-cs35l41-hda.1");
+
 		if (i >= 0)
 			spec->comps[i].set_channel_map(spec->comps[i].dev, 0, NULL, 1, &rx_slot);
 		break;
@@ -6585,6 +6588,10 @@ static void alc287_fixup_legion_16achg6_speakers(struct hda_codec *codec,
 				    "i2c-CLSA0100:00-cs35l41-hda.0");
 		component_match_add(dev, &spec->match, comp_match_dev_name,
 				    "i2c-CLSA0100:00-cs35l41-hda.1");
+		component_match_add(dev, &spec->match, comp_match_dev_name,
+				    "i2c-CLSA0101:00-cs35l41-hda.0");
+		component_match_add(dev, &spec->match, comp_match_dev_name,
+				    "i2c-CLSA0101:00-cs35l41-hda.1");
 		ret = component_master_add_with_match(dev, &comp_master_ops, spec->match);
 		if (ret)
 			codec_err(codec, "Fail to register component aggregator %d\n", ret);

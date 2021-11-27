@@ -22,6 +22,9 @@ static int cs35l41_hda_i2c_probe(struct i2c_client *clt, const struct i2c_device
 	if (memcmp(dev_name(&clt->dev), "i2c-CLSA0100", 12) == 0)
 		device_name = "CLSA0100";
 
+	if (memcmp(dev_name(&clt->dev), "i2c-CLSA0101", 12) == 0)
+		device_name = "CLSA0101";
+
 	return cs35l41_hda_probe(&clt->dev, device_name, clt->addr, clt->irq,
 				 devm_regmap_init_i2c(clt, &cs35l41_regmap_i2c));
 }
@@ -39,6 +42,7 @@ static const struct i2c_device_id cs35l41_hda_i2c_id[] = {
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id cs35l41_acpi_hda_match[] = {
 	{"CLSA0100", 0 },
+	{"CLSA0101", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(acpi, cs35l41_acpi_hda_match);
