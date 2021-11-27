@@ -162,6 +162,7 @@ static const struct acpi_device_id i2c_multi_inst_acpi_ids[] = {
 	{ "BSG2150", (unsigned long)bsg2150_data },
 	{ "INT3515", (unsigned long)int3515_data },
 	{ "CLSA0100", (unsigned long)clsa0100_data },
+	{ "CLSA0101", (unsigned long)clsa0100_data },
 	{ }
 };
 MODULE_DEVICE_TABLE(acpi, i2c_multi_inst_acpi_ids);

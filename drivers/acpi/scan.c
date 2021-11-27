@@ -1709,6 +1709,7 @@ static bool acpi_device_enumeration_by_parent(struct acpi_device *device)
 		{"INT33FE", },
 		{"INT3515", },
 		{"CLSA0100", },
+		{"CLSA0101", },
 		{}
 	};
 
