@@ -19969,17 +19969,7 @@ static int rtl8152_probe(struct usb_interface *intf,
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39) */
 	}
 
-	if (udev->parent &&
-			le16_to_cpu(udev->parent->descriptor.idVendor) == VENDOR_ID_LENOVO) {
-		tp->lenovo_macpassthru = 1;
-	}
-
-	if (le16_to_cpu(udev->descriptor.bcdDevice) == 0x3011 && udev->serial &&
-	    (!strcmp(udev->serial, "000001000000") ||
-	     !strcmp(udev->serial, "000002000000"))) {
-		dev_info(&udev->dev, "Dell TB16 Dock, disable RX aggregation");
-		tp->dell_tb_rx_agg_bug = 1;
-	}
+	rtl_get_mapt_ver(tp);
 
 	netdev->ethtool_ops = &ops;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26)
