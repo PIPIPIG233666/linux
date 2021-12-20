@@ -11,6 +11,7 @@ ifeq ($(ARCH),x86)
 else
         KBUILD_DEFCONFIG := $(ARCH)_defconfig
 endif
+KBUILD_DEFCONFIG := laptop_defconfig
 
 # For gcc stack alignment is specified with -mpreferred-stack-boundary,
 # clang has the option -mstack-alignment for that purpose.
