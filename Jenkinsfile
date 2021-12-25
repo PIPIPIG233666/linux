@@ -2,9 +2,21 @@ pipeline {
   agent any
   stages {
     stage('Clean') {
-      steps {
-        sh 'git reset --hard'
-        sh 'make O=out clean'
+      parallel {
+        stage('Clean') {
+          steps {
+            sh 'git reset --hard'
+            sh 'make O=out clean'
+          }
+        }
+
+        stage('Rm old kernel') {
+          steps {
+            sh '''sudo rm -rf /boot/**5.**
+sudo rm -rf /lib/modules/**'''
+          }
+        }
+
       }
     }
 
