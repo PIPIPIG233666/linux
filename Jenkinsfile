@@ -6,7 +6,7 @@ pipeline {
         stage('Clean') {
           steps {
             sh 'git reset --hard'
-            sh 'sudo make O=out clean'
+            sh 'make O=out clean'
           }
         }
 
