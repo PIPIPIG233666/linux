@@ -27,40 +27,26 @@ sudo rm -rf /lib/modules/**'''
     }
 
     stage('Kbuild') {
-      parallel {
-        stage('Kbuild') {
-          steps {
-            sh 'make -j16 O=out'
-          }
-        }
-
-        stage('Build usbipd') {
-          steps {
-            sh '''sudo ./tools/usb/usbip/autogen.sh
-sudo ./tools/usb/usbip/configure
-'''
-          }
-        }
-
+      steps {
+        sh 'make -j16 O=out'
       }
     }
 
     stage('Install') {
-      parallel {
-        stage('Install') {
-          steps {
-            sh '''sudo make O=out modules_install
+      steps {
+        sh '''sudo make O=out modules_install
 sudo make O=out install'''
-          }
-        }
+      }
+    }
 
-        stage('Install usbipd') {
-          steps {
-            sh '''sudo make -C tools/usb/usbip install -j16
-sudo cp tools/usb/usbip/libsrc/.libs/libusbip.so.0 /lib/libusbip.so.0'''
-          }
-        }
-
+    stage('Build & install usbipd') {
+      steps {
+        sh '''cd tools/usb/usbip
+sudo ./autogen.sh
+sudo ./configure
+sudo make install -j16
+sudo cp libsrc/.libs/libusbip.so.0 /lib/libusbip.so.0
+sudo apt-get install hwdata'''
       }
     }
 
