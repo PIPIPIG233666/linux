@@ -5,7 +5,7 @@ pipeline {
       parallel {
         stage('Clean') {
           steps {
-            sh 'git reset --hard'
+            sh 'sudo git reset --hard'
             sh 'sudo make O=out clean'
           }
         }
