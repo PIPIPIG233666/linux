@@ -5,8 +5,9 @@ pipeline {
       parallel {
         stage('Clean') {
           steps {
-            sh 'sudo git reset --hard'
-            sh 'sudo make O=out clean'
+            sh '''sudo rm -rf cd tools/usb/usbip
+git reset --hard'''
+            sh 'make O=out clean'
           }
         }
 
