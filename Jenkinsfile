@@ -5,8 +5,7 @@ pipeline {
       parallel {
         stage('Clean') {
           steps {
-            sh '''sudo rm -rf tools/usb/usbip
-git reset --hard'''
+            sh 'git reset --hard'
             sh 'make O=out clean'
           }
         }
@@ -47,7 +46,9 @@ sudo ./autogen.sh
 sudo ./configure
 sudo make install -j16
 sudo cp libsrc/.libs/libusbip.so.0 /lib/libusbip.so.0
-sudo apt-get install hwdata'''
+sudo apt-get install hwdata
+sudo rm -rf tools/usb/usbip
+git reset --hard'''
       }
     }
 
