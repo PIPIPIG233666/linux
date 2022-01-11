@@ -39,18 +39,5 @@ sudo make O=out install'''
       }
     }
 
-    stage('Build & install usbipd') {
-      steps {
-        sh '''cd tools/usb/usbip
-sudo ./autogen.sh
-sudo ./configure
-sudo make install -j16
-sudo cp libsrc/.libs/libusbip.so.0 /lib/libusbip.so.0
-sudo apt-get install hwdata
-sudo rm -rf tools/usb/usbip
-git reset --hard'''
-      }
-    }
-
   }
 }
