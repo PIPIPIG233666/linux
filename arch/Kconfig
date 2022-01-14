@@ -1312,6 +1312,10 @@ config ARCH_HAS_PARANOID_L1D_FLUSH
 config DYNAMIC_SIGFRAME
 	bool
 
+# Select, if arch has a named attribute group bound to NUMA device nodes.
+config HAVE_ARCH_NODE_DEV_GROUP
+	bool
+
 config ARCH_HAS_NONLEAF_PMD_YOUNG
 	bool
 	depends on PGTABLE_LEVELS > 2
