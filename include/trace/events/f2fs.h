@@ -540,17 +540,17 @@ TRACE_EVENT(f2fs_truncate_partial_nodes,
 
 TRACE_EVENT(f2fs_file_write_iter,
 
-	TP_PROTO(struct inode *inode, loff_t offset, size_t length,
-		 ssize_t ret),
+	TP_PROTO(struct inode *inode, unsigned long offset,
+		unsigned long length, int ret),
 
 	TP_ARGS(inode, offset, length, ret),
 
 	TP_STRUCT__entry(
 		__field(dev_t,	dev)
 		__field(ino_t,	ino)
-		__field(loff_t, offset)
-		__field(size_t, length)
-		__field(ssize_t, ret)
+		__field(unsigned long, offset)
+		__field(unsigned long, length)
+		__field(int,	ret)
 	),
 
 	TP_fast_assign(
@@ -562,7 +562,7 @@ TRACE_EVENT(f2fs_file_write_iter,
 	),
 
 	TP_printk("dev = (%d,%d), ino = %lu, "
-		"offset = %lld, length = %zu, written(err) = %zd",
+		"offset = %lu, length = %lu, written(err) = %d",
 		show_dev_ino(__entry),
 		__entry->offset,
 		__entry->length,
@@ -936,14 +936,14 @@ TRACE_EVENT(f2fs_fallocate,
 
 TRACE_EVENT(f2fs_direct_IO_enter,
 
-	TP_PROTO(struct inode *inode, struct kiocb *iocb, long len, int rw),
+	TP_PROTO(struct inode *inode, loff_t offset, unsigned long len, int rw),
 
-	TP_ARGS(inode, iocb, len, rw),
+	TP_ARGS(inode, offset, len, rw),
 
 	TP_STRUCT__entry(
 		__field(dev_t,	dev)
 		__field(ino_t,	ino)
-		__field(struct kiocb *,	iocb)
+		__field(loff_t,	pos)
 		__field(unsigned long,	len)
 		__field(int,	rw)
 	),
@@ -951,18 +951,15 @@ TRACE_EVENT(f2fs_direct_IO_enter,
 	TP_fast_assign(
 		__entry->dev	= inode->i_sb->s_dev;
 		__entry->ino	= inode->i_ino;
-		__entry->iocb	= iocb;
+		__entry->pos	= offset;
 		__entry->len	= len;
 		__entry->rw	= rw;
 	),
 
-	TP_printk("dev = (%d,%d), ino = %lu pos = %lld len = %lu ki_flags = %x ki_hint = %x ki_ioprio = %x rw = %d",
+	TP_printk("dev = (%d,%d), ino = %lu pos = %lld len = %lu rw = %d",
 		show_dev_ino(__entry),
-		__entry->iocb->ki_pos,
+		__entry->pos,
 		__entry->len,
-		__entry->iocb->ki_flags,
-		__entry->iocb->ki_hint,
-		__entry->iocb->ki_ioprio,
 		__entry->rw)
 );
 
