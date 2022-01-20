@@ -1051,7 +1051,7 @@ asm(
 	"	addl $4, %esp\n"
 	"	popfl\n"
 #endif
-	ASM_RET
+	"	ret\n"
 	".size __kretprobe_trampoline, .-__kretprobe_trampoline\n"
 );
 NOKPROBE_SYMBOL(__kretprobe_trampoline);

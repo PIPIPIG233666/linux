@@ -177,6 +177,7 @@ struct recv_priv {
 	uint  rx_smallpacket_crcerr;
 	uint  rx_middlepacket_crcerr;
 	struct semaphore allrxreturnevt;
+	uint	ff_hwaddr;
 	u8	rx_pending_cnt;
 
 	struct tasklet_struct irq_prepare_beacon_tasklet;

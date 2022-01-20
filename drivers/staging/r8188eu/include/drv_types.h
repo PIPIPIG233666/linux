@@ -34,7 +34,6 @@
 #include "rtw_p2p.h"
 #include "rtw_ap.h"
 #include "rtw_br_ext.h"
-#include "rtl8188e_hal.h"
 
 #define DRIVERVERSION	"v4.1.4_6773.20130222"
 
@@ -86,6 +85,7 @@ struct registry_priv {
 	u8	ampdu_amsdu;/* A-MPDU Supports A-MSDU is permitted */
 	u8	lowrate_two_xmit;
 
+	u8	rf_config;
 	u8	low_power;
 
 	u8	wifi_spec;/*  !turbo_mode */
@@ -114,6 +114,12 @@ struct registry_priv {
 	u8	notch_filter;
 };
 
+/* For registry parameters */
+#define RGTRY_OFT(field) ((u32)FIELD_OFFSET(struct registry_priv, field))
+#define RGTRY_SZ(field)   sizeof(((struct registry_priv *)0)->field)
+#define BSSID_OFT(field) ((u32)FIELD_OFFSET(struct wlan_bssid_ex, field))
+#define BSSID_SZ(field)   sizeof(((struct wlan_bssid_ex *)0)->field)
+
 #define MAX_CONTINUAL_URB_ERR		4
 
 struct rt_firmware {
@@ -123,13 +129,14 @@ struct rt_firmware {
 
 struct dvobj_priv {
 	struct adapter *if1;
+	struct adapter *if2;
 
 	/* For 92D, DMDP have 2 interface. */
 	u8	InterfaceNumber;
 	u8	NumInterfaces;
 
 	/* In /Out Pipe information */
-	int	RtInPipe;
+	int	RtInPipe[2];
 	int	RtOutPipe[3];
 	u8	Queue2Pipe[HW_QUEUE_ENTRY];/* for out pipe mapping */
 
@@ -139,8 +146,11 @@ struct dvobj_priv {
 
 /*-------- below is for USB INTERFACE --------*/
 
+	u8	nr_endpoint;
 	u8	ishighspeed;
+	u8	RtNumInPipes;
 	u8	RtNumOutPipes;
+	int	ep_num[5]; /* endpoint number */
 	int	RegUsbSS;
 	struct semaphore usb_suspend_sema;
 	struct mutex  usb_vendor_req_mutex;
@@ -200,7 +210,8 @@ struct adapter {
 	struct	hostapd_priv	*phostapdpriv;
 	struct wifidirect_info	wdinfo;
 
-	struct hal_data_8188e haldata;
+	void *HalData;
+	u32 hal_data_sz;
 
 	s32	bDriverStopped;
 	s32	bSurpriseRemoved;
@@ -263,6 +274,8 @@ struct adapter {
 	unsigned char			br_mac[ETH_ALEN];
 	unsigned char			br_ip[4];
 	struct br_ext_info		ethBrExtInfo;
+
+	u8	fix_rate;
 
 	unsigned char     in_cta_test;
 };

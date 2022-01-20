@@ -768,7 +768,7 @@ int mlx5e_ptp_alloc_rx_fs(struct mlx5e_priv *priv)
 {
 	struct mlx5e_ptp_fs *ptp_fs;
 
-	if (!mlx5e_profile_feature_cap(priv->profile, PTP_RX))
+	if (!priv->profile->rx_ptp_support)
 		return 0;
 
 	ptp_fs = kzalloc(sizeof(*ptp_fs), GFP_KERNEL);
@@ -783,7 +783,7 @@ void mlx5e_ptp_free_rx_fs(struct mlx5e_priv *priv)
 {
 	struct mlx5e_ptp_fs *ptp_fs = priv->fs.ptp_fs;
 
-	if (!mlx5e_profile_feature_cap(priv->profile, PTP_RX))
+	if (!priv->profile->rx_ptp_support)
 		return;
 
 	mlx5e_ptp_rx_unset_fs(priv);
@@ -794,7 +794,7 @@ int mlx5e_ptp_rx_manage_fs(struct mlx5e_priv *priv, bool set)
 {
 	struct mlx5e_ptp *c = priv->channels.ptp;
 
-	if (!mlx5e_profile_feature_cap(priv->profile, PTP_RX))
+	if (!priv->profile->rx_ptp_support)
 		return 0;
 
 	if (!test_bit(MLX5E_STATE_OPENED, &priv->state))

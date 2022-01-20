@@ -933,7 +933,7 @@ static u32 netsec_run_xdp(struct netsec_priv *priv, struct bpf_prog *prog,
 		}
 		break;
 	default:
-		bpf_warn_invalid_xdp_action(priv->ndev, prog, act);
+		bpf_warn_invalid_xdp_action(act);
 		fallthrough;
 	case XDP_ABORTED:
 		trace_xdp_exception(priv->ndev, prog, act);
@@ -1977,12 +1977,11 @@ static int netsec_register_mdio(struct netsec_priv *priv, u32 phy_addr)
 
 static int netsec_probe(struct platform_device *pdev)
 {
-	struct resource *mmio_res, *eeprom_res;
+	struct resource *mmio_res, *eeprom_res, *irq_res;
 	struct netsec_priv *priv;
 	u32 hw_ver, phy_addr = 0;
 	struct net_device *ndev;
 	int ret;
-	int irq;
 
 	mmio_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!mmio_res) {
@@ -1996,9 +1995,11 @@ static int netsec_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return irq;
+	irq_res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!irq_res) {
+		dev_err(&pdev->dev, "No IRQ resource found.\n");
+		return -ENODEV;
+	}
 
 	ndev = alloc_etherdev(sizeof(*priv));
 	if (!ndev)
@@ -2009,7 +2010,7 @@ static int netsec_probe(struct platform_device *pdev)
 	spin_lock_init(&priv->reglock);
 	SET_NETDEV_DEV(ndev, &pdev->dev);
 	platform_set_drvdata(pdev, priv);
-	ndev->irq = irq;
+	ndev->irq = irq_res->start;
 	priv->dev = &pdev->dev;
 	priv->ndev = ndev;
 

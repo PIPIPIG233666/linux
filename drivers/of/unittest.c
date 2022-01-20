@@ -911,18 +911,11 @@ static void __init of_unittest_dma_ranges_one(const char *path,
 	if (!rc) {
 		phys_addr_t	paddr;
 		dma_addr_t	dma_addr;
-		struct device	*dev_bogus;
+		struct device	dev_bogus;
 
-		dev_bogus = kzalloc(sizeof(struct device), GFP_KERNEL);
-		if (!dev_bogus) {
-			unittest(0, "kzalloc() failed\n");
-			kfree(map);
-			return;
-		}
-
-		dev_bogus->dma_range_map = map;
-		paddr = dma_to_phys(dev_bogus, expect_dma_addr);
-		dma_addr = phys_to_dma(dev_bogus, expect_paddr);
+		dev_bogus.dma_range_map = map;
+		paddr = dma_to_phys(&dev_bogus, expect_dma_addr);
+		dma_addr = phys_to_dma(&dev_bogus, expect_paddr);
 
 		unittest(paddr == expect_paddr,
 			 "of_dma_get_range: wrong phys addr %pap (expecting %llx) on node %pOF\n",
@@ -932,7 +925,6 @@ static void __init of_unittest_dma_ranges_one(const char *path,
 			 &dma_addr, expect_dma_addr, np);
 
 		kfree(map);
-		kfree(dev_bogus);
 	}
 	of_node_put(np);
 #endif
@@ -942,9 +934,8 @@ static void __init of_unittest_parse_dma_ranges(void)
 {
 	of_unittest_dma_ranges_one("/testcase-data/address-tests/device@70000000",
 		0x0, 0x20000000);
-	if (IS_ENABLED(CONFIG_ARCH_DMA_ADDR_T_64BIT))
-		of_unittest_dma_ranges_one("/testcase-data/address-tests/bus@80000000/device@1000",
-			0x100000000, 0x20000000);
+	of_unittest_dma_ranges_one("/testcase-data/address-tests/bus@80000000/device@1000",
+		0x100000000, 0x20000000);
 	of_unittest_dma_ranges_one("/testcase-data/address-tests/pci@90000000",
 		0x80000000, 0x20000000);
 }
@@ -1501,7 +1492,7 @@ static int __init unittest_data_add(void)
 }
 
 #ifdef CONFIG_OF_OVERLAY
-static int __init overlay_data_apply(const char *overlay_name, int *ovcs_id);
+static int __init overlay_data_apply(const char *overlay_name, int *overlay_id);
 
 static int unittest_probe(struct platform_device *pdev)
 {
@@ -1666,7 +1657,7 @@ static void __init of_unittest_overlay_gpio(void)
 	 * The overlays are applied by overlay_data_apply()
 	 * instead of of_unittest_apply_overlay() so that they
 	 * will not be tracked.  Thus they will not be removed
-	 * by of_unittest_remove_tracked_overlays().
+	 * by of_unittest_destroy_tracked_overlays().
 	 *
 	 * - apply overlay_gpio_01
 	 * - apply overlay_gpio_02a
@@ -1914,70 +1905,86 @@ static const char *overlay_name_from_nr(int nr)
 
 static const char *bus_path = "/testcase-data/overlay-node/test-bus";
 
-#define MAX_TRACK_OVCS_IDS 256
+/* FIXME: it is NOT guaranteed that overlay ids are assigned in sequence */
 
-static int track_ovcs_id[MAX_TRACK_OVCS_IDS];
-static int track_ovcs_id_overlay_nr[MAX_TRACK_OVCS_IDS];
-static int track_ovcs_id_cnt;
+#define MAX_UNITTEST_OVERLAYS	256
+static unsigned long overlay_id_bits[BITS_TO_LONGS(MAX_UNITTEST_OVERLAYS)];
+static int overlay_first_id = -1;
 
-static void of_unittest_track_overlay(int ovcs_id, int overlay_nr)
+static long of_unittest_overlay_tracked(int id)
 {
-	if (WARN_ON(track_ovcs_id_cnt >= MAX_TRACK_OVCS_IDS))
-		return;
-
-	track_ovcs_id[track_ovcs_id_cnt] = ovcs_id;
-	track_ovcs_id_overlay_nr[track_ovcs_id_cnt] = overlay_nr;
-	track_ovcs_id_cnt++;
+	if (WARN_ON(id >= MAX_UNITTEST_OVERLAYS))
+		return 0;
+	return overlay_id_bits[BIT_WORD(id)] & BIT_MASK(id);
 }
 
-static void of_unittest_untrack_overlay(int ovcs_id)
+static void of_unittest_track_overlay(int id)
 {
-	if (WARN_ON(track_ovcs_id_cnt < 1))
+	if (overlay_first_id < 0)
+		overlay_first_id = id;
+	id -= overlay_first_id;
+
+	if (WARN_ON(id >= MAX_UNITTEST_OVERLAYS))
 		return;
-
-	track_ovcs_id_cnt--;
-
-	/* If out of synch then test is broken.  Do not try to recover. */
-	WARN_ON(track_ovcs_id[track_ovcs_id_cnt] != ovcs_id);
+	overlay_id_bits[BIT_WORD(id)] |= BIT_MASK(id);
 }
 
-static void of_unittest_remove_tracked_overlays(void)
+static void of_unittest_untrack_overlay(int id)
 {
-	int ret, ovcs_id, overlay_nr, save_ovcs_id;
-	const char *overlay_name;
+	if (overlay_first_id < 0)
+		return;
+	id -= overlay_first_id;
+	if (WARN_ON(id >= MAX_UNITTEST_OVERLAYS))
+		return;
+	overlay_id_bits[BIT_WORD(id)] &= ~BIT_MASK(id);
+}
 
-	while (track_ovcs_id_cnt > 0) {
+static void of_unittest_destroy_tracked_overlays(void)
+{
+	int id, ret, defers, ovcs_id;
 
-		ovcs_id = track_ovcs_id[track_ovcs_id_cnt - 1];
-		overlay_nr = track_ovcs_id_overlay_nr[track_ovcs_id_cnt - 1];
-		save_ovcs_id = ovcs_id;
-		ret = of_overlay_remove(&ovcs_id);
-		if (ret == -ENODEV) {
-			overlay_name = overlay_name_from_nr(overlay_nr);
-			pr_warn("%s: of_overlay_remove() for overlay \"%s\" failed, ret = %d\n",
-				__func__, overlay_name, ret);
+	if (overlay_first_id < 0)
+		return;
+
+	/* try until no defers */
+	do {
+		defers = 0;
+		/* remove in reverse order */
+		for (id = MAX_UNITTEST_OVERLAYS - 1; id >= 0; id--) {
+			if (!of_unittest_overlay_tracked(id))
+				continue;
+
+			ovcs_id = id + overlay_first_id;
+			ret = of_overlay_remove(&ovcs_id);
+			if (ret == -ENODEV) {
+				pr_warn("%s: no overlay to destroy for #%d\n",
+					__func__, id + overlay_first_id);
+				continue;
+			}
+			if (ret != 0) {
+				defers++;
+				pr_warn("%s: overlay destroy failed for #%d\n",
+					__func__, id + overlay_first_id);
+				continue;
+			}
+
+			of_unittest_untrack_overlay(id);
 		}
-		of_unittest_untrack_overlay(save_ovcs_id);
-	}
-
+	} while (defers > 0);
 }
 
-static int __init of_unittest_apply_overlay(int overlay_nr, int *ovcs_id)
+static int __init of_unittest_apply_overlay(int overlay_nr, int *overlay_id)
 {
-	/*
-	 * The overlay will be tracked, thus it will be removed
-	 * by of_unittest_remove_tracked_overlays().
-	 */
-
 	const char *overlay_name;
 
 	overlay_name = overlay_name_from_nr(overlay_nr);
 
-	if (!overlay_data_apply(overlay_name, ovcs_id)) {
-		unittest(0, "could not apply overlay \"%s\"\n", overlay_name);
+	if (!overlay_data_apply(overlay_name, overlay_id)) {
+		unittest(0, "could not apply overlay \"%s\"\n",
+				overlay_name);
 		return -EFAULT;
 	}
-	of_unittest_track_overlay(*ovcs_id, overlay_nr);
+	of_unittest_track_overlay(*overlay_id);
 
 	return 0;
 }
@@ -2022,7 +2029,7 @@ static int __init of_unittest_apply_revert_overlay_check(int overlay_nr,
 		int unittest_nr, int before, int after,
 		enum overlay_type ovtype)
 {
-	int ret, ovcs_id, save_ovcs_id;
+	int ret, ovcs_id, save_id;
 
 	/* unittest device must be in before state */
 	if (of_unittest_device_exists(unittest_nr, ovtype) != before) {
@@ -2050,7 +2057,7 @@ static int __init of_unittest_apply_revert_overlay_check(int overlay_nr,
 		return -EINVAL;
 	}
 
-	save_ovcs_id = ovcs_id;
+	save_id = ovcs_id;
 	ret = of_overlay_remove(&ovcs_id);
 	if (ret != 0) {
 		unittest(0, "%s failed to be destroyed @\"%s\"\n",
@@ -2058,7 +2065,7 @@ static int __init of_unittest_apply_revert_overlay_check(int overlay_nr,
 				unittest_path(unittest_nr, ovtype));
 		return ret;
 	}
-	of_unittest_untrack_overlay(save_ovcs_id);
+	of_unittest_untrack_overlay(save_id);
 
 	/* unittest device must be again in before state */
 	if (of_unittest_device_exists(unittest_nr, PDEV_OVERLAY) != before) {
@@ -2185,7 +2192,7 @@ static void __init of_unittest_overlay_5(void)
 /* test overlay application in sequence */
 static void __init of_unittest_overlay_6(void)
 {
-	int i, save_ovcs_id[2], ovcs_id;
+	int i, ov_id[2], ovcs_id;
 	int overlay_nr = 6, unittest_nr = 6;
 	int before = 0, after = 1;
 	const char *overlay_name;
@@ -2218,8 +2225,8 @@ static void __init of_unittest_overlay_6(void)
 		unittest(0, "could not apply overlay \"%s\"\n", overlay_name);
 			return;
 	}
-	save_ovcs_id[0] = ovcs_id;
-	of_unittest_track_overlay(ovcs_id, overlay_nr + 0);
+	ov_id[0] = ovcs_id;
+	of_unittest_track_overlay(ov_id[0]);
 
 	EXPECT_END(KERN_INFO,
 		   "OF: overlay: WARNING: memory leak will occur if overlay removed, property: /testcase-data/overlay-node/test-bus/test-unittest6/status");
@@ -2235,8 +2242,8 @@ static void __init of_unittest_overlay_6(void)
 		unittest(0, "could not apply overlay \"%s\"\n", overlay_name);
 			return;
 	}
-	save_ovcs_id[1] = ovcs_id;
-	of_unittest_track_overlay(ovcs_id, overlay_nr + 1);
+	ov_id[1] = ovcs_id;
+	of_unittest_track_overlay(ov_id[1]);
 
 	EXPECT_END(KERN_INFO,
 		   "OF: overlay: WARNING: memory leak will occur if overlay removed, property: /testcase-data/overlay-node/test-bus/test-unittest7/status");
@@ -2256,7 +2263,7 @@ static void __init of_unittest_overlay_6(void)
 	}
 
 	for (i = 1; i >= 0; i--) {
-		ovcs_id = save_ovcs_id[i];
+		ovcs_id = ov_id[i];
 		if (of_overlay_remove(&ovcs_id)) {
 			unittest(0, "%s failed destroy @\"%s\"\n",
 					overlay_name_from_nr(overlay_nr + i),
@@ -2264,7 +2271,7 @@ static void __init of_unittest_overlay_6(void)
 						PDEV_OVERLAY));
 			return;
 		}
-		of_unittest_untrack_overlay(save_ovcs_id[i]);
+		of_unittest_untrack_overlay(ov_id[i]);
 	}
 
 	for (i = 0; i < 2; i++) {
@@ -2287,7 +2294,7 @@ static void __init of_unittest_overlay_6(void)
 /* test overlay application in sequence */
 static void __init of_unittest_overlay_8(void)
 {
-	int i, save_ovcs_id[2], ovcs_id;
+	int i, ov_id[2], ovcs_id;
 	int overlay_nr = 8, unittest_nr = 8;
 	const char *overlay_name;
 	int ret;
@@ -2309,8 +2316,8 @@ static void __init of_unittest_overlay_8(void)
 	if (!ret)
 		return;
 
-	save_ovcs_id[0] = ovcs_id;
-	of_unittest_track_overlay(ovcs_id, overlay_nr + 0);
+	ov_id[0] = ovcs_id;
+	of_unittest_track_overlay(ov_id[0]);
 
 	overlay_name = overlay_name_from_nr(overlay_nr + 1);
 
@@ -2328,11 +2335,11 @@ static void __init of_unittest_overlay_8(void)
 		return;
 	}
 
-	save_ovcs_id[1] = ovcs_id;
-	of_unittest_track_overlay(ovcs_id, overlay_nr + 1);
+	ov_id[1] = ovcs_id;
+	of_unittest_track_overlay(ov_id[1]);
 
 	/* now try to remove first overlay (it should fail) */
-	ovcs_id = save_ovcs_id[0];
+	ovcs_id = ov_id[0];
 
 	EXPECT_BEGIN(KERN_INFO,
 		     "OF: overlay: node_overlaps_later_cs: #6 overlaps with #7 @/testcase-data/overlay-node/test-bus/test-unittest8");
@@ -2349,10 +2356,6 @@ static void __init of_unittest_overlay_8(void)
 		   "OF: overlay: node_overlaps_later_cs: #6 overlaps with #7 @/testcase-data/overlay-node/test-bus/test-unittest8");
 
 	if (!ret) {
-		/*
-		 * Should never get here.  If we do, expect a lot of
-		 * subsequent tracking and overlay removal related errors.
-		 */
 		unittest(0, "%s was destroyed @\"%s\"\n",
 				overlay_name_from_nr(overlay_nr + 0),
 				unittest_path(unittest_nr,
@@ -2362,7 +2365,7 @@ static void __init of_unittest_overlay_8(void)
 
 	/* removing them in order should work */
 	for (i = 1; i >= 0; i--) {
-		ovcs_id = save_ovcs_id[i];
+		ovcs_id = ov_id[i];
 		if (of_overlay_remove(&ovcs_id)) {
 			unittest(0, "%s not destroyed @\"%s\"\n",
 					overlay_name_from_nr(overlay_nr + i),
@@ -2370,7 +2373,7 @@ static void __init of_unittest_overlay_8(void)
 						PDEV_OVERLAY));
 			return;
 		}
-		of_unittest_untrack_overlay(save_ovcs_id[i]);
+		of_unittest_untrack_overlay(ov_id[i]);
 	}
 
 	unittest(1, "overlay test %d passed\n", 8);
@@ -2802,7 +2805,7 @@ static void __init of_unittest_overlay(void)
 
 	of_unittest_overlay_gpio();
 
-	of_unittest_remove_tracked_overlays();
+	of_unittest_destroy_tracked_overlays();
 
 out:
 	of_node_put(bus_np);
@@ -2834,7 +2837,7 @@ struct overlay_info {
 	uint8_t		*dtb_begin;
 	uint8_t		*dtb_end;
 	int		expected_result;
-	int		ovcs_id;
+	int		overlay_id;
 	char		*name;
 };
 
@@ -2988,7 +2991,7 @@ void __init unittest_unflatten_overlay_base(void)
  *
  * Return 0 on unexpected error.
  */
-static int __init overlay_data_apply(const char *overlay_name, int *ovcs_id)
+static int __init overlay_data_apply(const char *overlay_name, int *overlay_id)
 {
 	struct overlay_info *info;
 	int found = 0;
@@ -3010,9 +3013,9 @@ static int __init overlay_data_apply(const char *overlay_name, int *ovcs_id)
 	if (!size)
 		pr_err("no overlay data for %s\n", overlay_name);
 
-	ret = of_overlay_fdt_apply(info->dtb_begin, size, &info->ovcs_id);
-	if (ovcs_id)
-		*ovcs_id = info->ovcs_id;
+	ret = of_overlay_fdt_apply(info->dtb_begin, size, &info->overlay_id);
+	if (overlay_id)
+		*overlay_id = info->overlay_id;
 	if (ret < 0)
 		goto out;
 

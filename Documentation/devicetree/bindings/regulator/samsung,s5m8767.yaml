@@ -67,9 +67,8 @@ patternProperties:
     required:
       - regulator-name
 
-properties:
   # 9 buck
-  BUCK9:
+  "^BUCK9$":
     type: object
     $ref: regulator.yaml#
     unevaluatedProperties: false

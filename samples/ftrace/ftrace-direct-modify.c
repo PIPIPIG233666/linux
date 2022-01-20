@@ -34,7 +34,7 @@ asm (
 "	call my_direct_func1\n"
 "	leave\n"
 "	.size		my_tramp1, .-my_tramp1\n"
-	ASM_RET
+"	ret\n"
 "	.type		my_tramp2, @function\n"
 "	.globl		my_tramp2\n"
 "   my_tramp2:"
@@ -42,7 +42,7 @@ asm (
 "	movq %rsp, %rbp\n"
 "	call my_direct_func2\n"
 "	leave\n"
-	ASM_RET
+"	ret\n"
 "	.size		my_tramp2, .-my_tramp2\n"
 "	.popsection\n"
 );

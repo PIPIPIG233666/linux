@@ -545,8 +545,7 @@ u32 rtw_tkip_decrypt(struct adapter *padapter, struct recv_frame *precvframe)
 			if (is_multicast_ether_addr(prxattrib->ra)) {
 				if (!psecuritypriv->binstallGrpkey) {
 					res = _FAIL;
-					netdev_dbg(padapter->pnetdev,
-						   "rx bc/mc packets, but didn't install group key!\n");
+					DBG_88E("%s:rx bc/mc packets, but didn't install group key!!!!!!!!!!\n", __func__);
 					goto exit;
 				}
 				prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
@@ -1146,7 +1145,7 @@ u32 rtw_aes_encrypt(struct adapter *padapter, struct xmit_frame *pxmitframe)
 	return res;
 }
 
-static int aes_decipher(struct adapter *padapter, u8 *key, uint hdrlen,
+static int aes_decipher(u8 *key, uint	hdrlen,
 			u8 *pframe, uint plen)
 {
 	static u8	message[MAX_MSG_SIZE];
@@ -1330,10 +1329,8 @@ static int aes_decipher(struct adapter *padapter, u8 *key, uint hdrlen,
 	/* compare the mic */
 	for (i = 0; i < 8; i++) {
 		if (pframe[hdrlen + 8 + plen - 8 + i] != message[hdrlen + 8 + plen - 8 + i]) {
-			netdev_dbg(padapter->pnetdev,
-				   "mic check error mic[%d]: pframe(%x)!=message(%x)\n",
-				   i, pframe[hdrlen + 8 + plen - 8 + i],
-				   message[hdrlen + 8 + plen - 8 + i]);
+			DBG_88E("aes_decipher:mic check error mic[%d]: pframe(%x)!=message(%x)\n",
+				i, pframe[hdrlen + 8 + plen - 8 + i], message[hdrlen + 8 + plen - 8 + i]);
 			res = _FAIL;
 		}
 	}
@@ -1361,16 +1358,13 @@ u32 rtw_aes_decrypt(struct adapter *padapter, struct recv_frame *precvframe)
 				/* in concurrent we should use sw descrypt in group key, so we remove this message */
 				if (!psecuritypriv->binstallGrpkey) {
 					res = _FAIL;
-					netdev_dbg(padapter->pnetdev,
-						   "rx bc/mc packets, but didn't install group key!\n");
+					DBG_88E("%s:rx bc/mc packets, but didn't install group key!!!!!!!!!!\n", __func__);
 					goto exit;
 				}
 				prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
 				if (psecuritypriv->dot118021XGrpKeyid != prxattrib->key_index) {
-					netdev_dbg(padapter->pnetdev,
-						   "not match packet_index=%d, install_index=%d\n",
-						   prxattrib->key_index,
-						   psecuritypriv->dot118021XGrpKeyid);
+					DBG_88E("not match packet_index=%d, install_index=%d\n",
+						prxattrib->key_index, psecuritypriv->dot118021XGrpKeyid);
 					res = _FAIL;
 					goto exit;
 				}
@@ -1378,7 +1372,7 @@ u32 rtw_aes_decrypt(struct adapter *padapter, struct recv_frame *precvframe)
 				prwskey = &stainfo->dot118021x_UncstKey.skey[0];
 			}
 			length = precvframe->len - prxattrib->hdrlen - prxattrib->iv_len;
-			res = aes_decipher(padapter, prwskey, prxattrib->hdrlen, pframe, length);
+			res = aes_decipher(prwskey, prxattrib->hdrlen, pframe, length);
 		} else {
 			res = _FAIL;
 		}

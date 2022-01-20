@@ -433,7 +433,11 @@ int dev_dax_probe(struct dev_dax *dev_dax)
 	inode = dax_inode(dax_dev);
 	cdev = inode->i_cdev;
 	cdev_init(cdev, &dax_fops);
-	cdev->owner = dev->driver->owner;
+	if (dev->class) {
+		/* for the CONFIG_DEV_DAX_PMEM_COMPAT case */
+		cdev->owner = dev->parent->driver->owner;
+	} else
+		cdev->owner = dev->driver->owner;
 	cdev_set_parent(cdev, &dev->kobj);
 	rc = cdev_add(cdev, dev->devt, 1);
 	if (rc)

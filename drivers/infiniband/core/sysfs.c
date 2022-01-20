@@ -433,7 +433,6 @@ static struct attribute *port_default_attrs[] = {
 	&ib_port_attr_link_layer.attr,
 	NULL
 };
-ATTRIBUTE_GROUPS(port_default);
 
 static ssize_t print_ndev(const struct ib_gid_attr *gid_attr, char *buf)
 {
@@ -775,7 +774,7 @@ static void ib_port_gid_attr_release(struct kobject *kobj)
 static struct kobj_type port_type = {
 	.release       = ib_port_release,
 	.sysfs_ops     = &port_sysfs_ops,
-	.default_groups = port_default_groups,
+	.default_attrs = port_default_attrs
 };
 
 static struct kobj_type gid_attr_type = {

@@ -65,9 +65,7 @@ static int nsim_set_coalesce(struct net_device *dev,
 }
 
 static void nsim_get_ringparam(struct net_device *dev,
-			       struct ethtool_ringparam *ring,
-			       struct kernel_ethtool_ringparam *kernel_ring,
-			       struct netlink_ext_ack *extack)
+			       struct ethtool_ringparam *ring)
 {
 	struct netdevsim *ns = netdev_priv(dev);
 
@@ -75,9 +73,7 @@ static void nsim_get_ringparam(struct net_device *dev,
 }
 
 static int nsim_set_ringparam(struct net_device *dev,
-			      struct ethtool_ringparam *ring,
-			      struct kernel_ethtool_ringparam *kernel_ring,
-			      struct netlink_ext_ack *extack)
+			      struct ethtool_ringparam *ring)
 {
 	struct netdevsim *ns = netdev_priv(dev);
 

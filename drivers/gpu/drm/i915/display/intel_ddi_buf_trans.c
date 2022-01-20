@@ -1032,21 +1032,6 @@ bool is_hobl_buf_trans(const struct intel_ddi_buf_trans *table)
 	return table == &tgl_combo_phy_trans_edp_hbr2_hobl;
 }
 
-static bool use_edp_hobl(struct intel_encoder *encoder)
-{
-	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
-
-	return i915->vbt.edp.hobl && !intel_dp->hobl_failed;
-}
-
-static bool use_edp_low_vswing(struct intel_encoder *encoder)
-{
-	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
-
-	return i915->vbt.edp.low_vswing;
-}
-
 static const struct intel_ddi_buf_trans *
 intel_get_buf_trans(const struct intel_ddi_buf_trans *trans, int *num_entries)
 {
@@ -1072,12 +1057,14 @@ bdw_get_buf_trans(struct intel_encoder *encoder,
 		  const struct intel_crtc_state *crtc_state,
 		  int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_ANALOG))
 		return intel_get_buf_trans(&bdw_trans_fdi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&bdw_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return intel_get_buf_trans(&bdw_trans_edp, n_entries);
 	else
 		return intel_get_buf_trans(&bdw_trans_dp, n_entries);
@@ -1107,10 +1094,12 @@ skl_y_get_buf_trans(struct intel_encoder *encoder,
 		    const struct intel_crtc_state *crtc_state,
 		    int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_y_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_y_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &skl_y_trans_dp, n_entries);
@@ -1121,10 +1110,12 @@ skl_u_get_buf_trans(struct intel_encoder *encoder,
 		    const struct intel_crtc_state *crtc_state,
 		    int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_u_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &skl_u_trans_dp, n_entries);
@@ -1135,10 +1126,12 @@ skl_get_buf_trans(struct intel_encoder *encoder,
 		  const struct intel_crtc_state *crtc_state,
 		  int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &skl_trans_dp, n_entries);
@@ -1149,10 +1142,12 @@ kbl_y_get_buf_trans(struct intel_encoder *encoder,
 		    const struct intel_crtc_state *crtc_state,
 		    int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_y_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_y_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &kbl_y_trans_dp, n_entries);
@@ -1163,10 +1158,12 @@ kbl_u_get_buf_trans(struct intel_encoder *encoder,
 		    const struct intel_crtc_state *crtc_state,
 		    int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_u_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &kbl_u_trans_dp, n_entries);
@@ -1177,10 +1174,12 @@ kbl_get_buf_trans(struct intel_encoder *encoder,
 		  const struct intel_crtc_state *crtc_state,
 		  int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&skl_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return _skl_get_buf_trans_dp(encoder, &skl_trans_edp, n_entries);
 	else
 		return _skl_get_buf_trans_dp(encoder, &kbl_trans_dp, n_entries);
@@ -1191,10 +1190,12 @@ bxt_get_buf_trans(struct intel_encoder *encoder,
 		  const struct intel_crtc_state *crtc_state,
 		  int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&bxt_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 i915->vbt.edp.low_vswing)
 		return intel_get_buf_trans(&bxt_trans_edp, n_entries);
 	else
 		return intel_get_buf_trans(&bxt_trans_dp, n_entries);
@@ -1214,10 +1215,12 @@ icl_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			    const struct intel_crtc_state *crtc_state,
 			    int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+
 	if (crtc_state->port_clock > 540000) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_dp_hbr2_edp_hbr3,
 					   n_entries);
-	} else if (use_edp_low_vswing(encoder)) {
+	} else if (dev_priv->vbt.edp.low_vswing) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_edp_hbr2,
 					   n_entries);
 	}
@@ -1279,10 +1282,12 @@ ehl_get_combo_buf_trans(struct intel_encoder *encoder,
 			const struct intel_crtc_state *crtc_state,
 			int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&icl_combo_phy_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 dev_priv->vbt.edp.low_vswing)
 		return ehl_get_combo_buf_trans_edp(encoder, crtc_state, n_entries);
 	else
 		return intel_get_buf_trans(&ehl_combo_phy_trans_dp, n_entries);
@@ -1304,10 +1309,12 @@ jsl_get_combo_buf_trans(struct intel_encoder *encoder,
 			const struct intel_crtc_state *crtc_state,
 			int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+
 	if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		return intel_get_buf_trans(&icl_combo_phy_trans_hdmi, n_entries);
 	else if (intel_crtc_has_type(crtc_state, INTEL_OUTPUT_EDP) &&
-		 use_edp_low_vswing(encoder))
+		 dev_priv->vbt.edp.low_vswing)
 		return jsl_get_combo_buf_trans_edp(encoder, crtc_state, n_entries);
 	else
 		return intel_get_buf_trans(&icl_combo_phy_trans_dp_hbr2_edp_hbr3, n_entries);
@@ -1339,13 +1346,16 @@ tgl_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			    const struct intel_crtc_state *crtc_state,
 			    int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+
 	if (crtc_state->port_clock > 540000) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_dp_hbr2_edp_hbr3,
 					   n_entries);
-	} else if (use_edp_hobl(encoder)) {
+	} else if (dev_priv->vbt.edp.hobl && !intel_dp->hobl_failed) {
 		return intel_get_buf_trans(&tgl_combo_phy_trans_edp_hbr2_hobl,
 					   n_entries);
-	} else if (use_edp_low_vswing(encoder)) {
+	} else if (dev_priv->vbt.edp.low_vswing) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_edp_hbr2,
 					   n_entries);
 	}
@@ -1384,13 +1394,16 @@ dg1_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			    const struct intel_crtc_state *crtc_state,
 			    int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+
 	if (crtc_state->port_clock > 540000)
 		return intel_get_buf_trans(&icl_combo_phy_trans_dp_hbr2_edp_hbr3,
 					   n_entries);
-	else if (use_edp_hobl(encoder))
+	else if (dev_priv->vbt.edp.hobl && !intel_dp->hobl_failed)
 		return intel_get_buf_trans(&tgl_combo_phy_trans_edp_hbr2_hobl,
 					   n_entries);
-	else if (use_edp_low_vswing(encoder))
+	else if (dev_priv->vbt.edp.low_vswing)
 		return intel_get_buf_trans(&icl_combo_phy_trans_edp_hbr2,
 					   n_entries);
 	else
@@ -1426,13 +1439,16 @@ rkl_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			    const struct intel_crtc_state *crtc_state,
 			    int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+
 	if (crtc_state->port_clock > 540000) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_dp_hbr2_edp_hbr3,
 					   n_entries);
-	} else if (use_edp_hobl(encoder)) {
+	} else if (dev_priv->vbt.edp.hobl && !intel_dp->hobl_failed) {
 		return intel_get_buf_trans(&tgl_combo_phy_trans_edp_hbr2_hobl,
 					   n_entries);
-	} else if (use_edp_low_vswing(encoder)) {
+	} else if (dev_priv->vbt.edp.low_vswing) {
 		return intel_get_buf_trans(&icl_combo_phy_trans_edp_hbr2,
 					   n_entries);
 	}
@@ -1469,11 +1485,14 @@ adls_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			     const struct intel_crtc_state *crtc_state,
 			     int *n_entries)
 {
+	struct drm_i915_private *i915 = to_i915(encoder->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+
 	if (crtc_state->port_clock > 540000)
 		return intel_get_buf_trans(&adls_combo_phy_trans_edp_hbr3, n_entries);
-	else if (use_edp_hobl(encoder))
+	else if (i915->vbt.edp.hobl && !intel_dp->hobl_failed)
 		return intel_get_buf_trans(&tgl_combo_phy_trans_edp_hbr2_hobl, n_entries);
-	else if (use_edp_low_vswing(encoder))
+	else if (i915->vbt.edp.low_vswing)
 		return intel_get_buf_trans(&adls_combo_phy_trans_edp_hbr2, n_entries);
 	else
 		return adls_get_combo_buf_trans_dp(encoder, crtc_state, n_entries);
@@ -1508,13 +1527,16 @@ adlp_get_combo_buf_trans_edp(struct intel_encoder *encoder,
 			     const struct intel_crtc_state *crtc_state,
 			     int *n_entries)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+
 	if (crtc_state->port_clock > 540000) {
 		return intel_get_buf_trans(&adlp_combo_phy_trans_edp_hbr3,
 					   n_entries);
-	} else if (use_edp_hobl(encoder)) {
+	} else if (dev_priv->vbt.edp.hobl && !intel_dp->hobl_failed) {
 		return intel_get_buf_trans(&tgl_combo_phy_trans_edp_hbr2_hobl,
 					   n_entries);
-	} else if (use_edp_low_vswing(encoder)) {
+	} else if (dev_priv->vbt.edp.low_vswing) {
 		return intel_get_buf_trans(&adlp_combo_phy_trans_edp_up_to_hbr2,
 					   n_entries);
 	}

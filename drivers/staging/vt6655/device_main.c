@@ -369,11 +369,11 @@ static void device_init_registers(struct vnt_private *priv)
 	/* Set Short Slot Time, xIFS, and RSPINF. */
 	priv->wCurrentRate = RATE_54M;
 
-	priv->radio_off = false;
+	priv->bRadioOff = false;
 
 	priv->byRadioCtl = SROMbyReadEmbedded(priv->port_offset,
 					      EEP_OFS_RADIOCTL);
-	priv->hw_radio_off = false;
+	priv->bHWRadioOff = false;
 
 	if (priv->byRadioCtl & EEP_RADIOCTL_ENABLE) {
 		/* Get GPIO */
@@ -383,10 +383,10 @@ static void device_init_registers(struct vnt_private *priv)
 		     !(priv->byRadioCtl & EEP_RADIOCTL_INV)) ||
 		     (!(priv->byGPIO & GPIO0_DATA) &&
 		     (priv->byRadioCtl & EEP_RADIOCTL_INV)))
-			priv->hw_radio_off = true;
+			priv->bHWRadioOff = true;
 	}
 
-	if (priv->hw_radio_off || priv->bRadioControlOff)
+	if (priv->bHWRadioOff || priv->bRadioControlOff)
 		CARDbRadioPowerOff(priv);
 
 	/* get Permanent network address */
@@ -980,10 +980,10 @@ static void vnt_check_bb_vga(struct vnt_private *priv)
 	if (priv->hw->conf.flags & IEEE80211_CONF_OFFCHANNEL)
 		return;
 
-	if (!(priv->vif->bss_conf.assoc && priv->current_rssi))
+	if (!(priv->vif->bss_conf.assoc && priv->uCurrRSSI))
 		return;
 
-	RFvRSSITodBm(priv, (u8)priv->current_rssi, &dbm);
+	RFvRSSITodBm(priv, (u8)priv->uCurrRSSI, &dbm);
 
 	for (i = 0; i < BB_VGA_LEVEL; i++) {
 		if (dbm < priv->dbm_threshold[i]) {

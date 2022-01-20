@@ -297,8 +297,6 @@ static void die_kernel_fault(const char *msg, unsigned long addr,
 	pr_alert("Unable to handle kernel %s at virtual address %016lx\n", msg,
 		 addr);
 
-	kasan_non_canonical_hook(addr);
-
 	mem_abort_decode(esr);
 
 	show_pte(addr);
@@ -815,8 +813,11 @@ void do_mem_abort(unsigned long far, unsigned int esr, struct pt_regs *regs)
 	if (!inf->fn(far, esr, regs))
 		return;
 
-	if (!user_mode(regs))
-		die_kernel_fault(inf->name, addr, esr, regs);
+	if (!user_mode(regs)) {
+		pr_alert("Unhandled fault at 0x%016lx\n", addr);
+		mem_abort_decode(esr);
+		show_pte(addr);
+	}
 
 	/*
 	 * At this point we have an unrecognized fault type whose tag bits may

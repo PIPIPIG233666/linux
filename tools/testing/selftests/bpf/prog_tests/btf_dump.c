@@ -13,23 +13,25 @@ static struct btf_dump_test_case {
 	const char *name;
 	const char *file;
 	bool known_ptr_sz;
+	struct btf_dump_opts opts;
 } btf_dump_test_cases[] = {
-	{"btf_dump: syntax", "btf_dump_test_case_syntax", true},
-	{"btf_dump: ordering", "btf_dump_test_case_ordering", false},
-	{"btf_dump: padding", "btf_dump_test_case_padding", true},
-	{"btf_dump: packing", "btf_dump_test_case_packing", true},
-	{"btf_dump: bitfields", "btf_dump_test_case_bitfields", true},
-	{"btf_dump: multidim", "btf_dump_test_case_multidim", false},
-	{"btf_dump: namespacing", "btf_dump_test_case_namespacing", false},
+	{"btf_dump: syntax", "btf_dump_test_case_syntax", true, {}},
+	{"btf_dump: ordering", "btf_dump_test_case_ordering", false, {}},
+	{"btf_dump: padding", "btf_dump_test_case_padding", true, {}},
+	{"btf_dump: packing", "btf_dump_test_case_packing", true, {}},
+	{"btf_dump: bitfields", "btf_dump_test_case_bitfields", true, {}},
+	{"btf_dump: multidim", "btf_dump_test_case_multidim", false, {}},
+	{"btf_dump: namespacing", "btf_dump_test_case_namespacing", false, {}},
 };
 
-static int btf_dump_all_types(const struct btf *btf, void *ctx)
+static int btf_dump_all_types(const struct btf *btf,
+			      const struct btf_dump_opts *opts)
 {
 	size_t type_cnt = btf__type_cnt(btf);
 	struct btf_dump *d;
 	int err = 0, id;
 
-	d = btf_dump__new(btf, btf_dump_printf, ctx, NULL);
+	d = btf_dump__new(btf, NULL, opts, btf_dump_printf);
 	err = libbpf_get_error(d);
 	if (err)
 		return err;
@@ -86,7 +88,8 @@ static int test_btf_dump_case(int n, struct btf_dump_test_case *t)
 		goto done;
 	}
 
-	err = btf_dump_all_types(btf, f);
+	t->opts.ctx = f;
+	err = btf_dump_all_types(btf, &t->opts);
 	fclose(f);
 	close(fd);
 	if (CHECK(err, "btf_dump", "failure during C dumping: %d\n", err)) {
@@ -134,6 +137,7 @@ static void test_btf_dump_incremental(void)
 {
 	struct btf *btf = NULL;
 	struct btf_dump *d = NULL;
+	struct btf_dump_opts opts;
 	int id, err, i;
 
 	dump_buf_file = open_memstream(&dump_buf, &dump_buf_sz);
@@ -142,7 +146,8 @@ static void test_btf_dump_incremental(void)
 	btf = btf__new_empty();
 	if (!ASSERT_OK_PTR(btf, "new_empty"))
 		goto err_out;
-	d = btf_dump__new(btf, btf_dump_printf, dump_buf_file, NULL);
+	opts.ctx = dump_buf_file;
+	d = btf_dump__new(btf, NULL, &opts, btf_dump_printf);
 	if (!ASSERT_OK(libbpf_get_error(d), "btf_dump__new"))
 		goto err_out;
 
@@ -323,7 +328,7 @@ static void test_btf_dump_int_data(struct btf *btf, struct btf_dump *d,
 				   char *str)
 {
 #ifdef __SIZEOF_INT128__
-	unsigned __int128 i = 0xffffffffffffffff;
+	__int128 i = 0xffffffffffffffff;
 
 	/* this dance is required because we cannot directly initialize
 	 * a 128-bit value to anything larger than a 64-bit value.
@@ -756,7 +761,7 @@ static void test_btf_dump_struct_data(struct btf *btf, struct btf_dump *d,
 	/* overflow bpf_sock_ops struct with final element nonzero/zero.
 	 * Regardless of the value of the final field, we don't have all the
 	 * data we need to display it, so we should trigger an overflow.
-	 * In other words overflow checking should trump "is field zero?"
+	 * In other words oveflow checking should trump "is field zero?"
 	 * checks because if we've overflowed, it shouldn't matter what the
 	 * field is - we can't trust its value so shouldn't display it.
 	 */
@@ -809,28 +814,26 @@ static void test_btf_datasec(struct btf *btf, struct btf_dump *d, char *str,
 
 static void test_btf_dump_datasec_data(char *str)
 {
-	struct btf *btf;
+	struct btf *btf = btf__parse("xdping_kern.o", NULL);
+	struct btf_dump_opts opts = { .ctx = str };
 	char license[4] = "GPL";
 	struct btf_dump *d;
 
-	btf = btf__parse("xdping_kern.o", NULL);
 	if (!ASSERT_OK_PTR(btf, "xdping_kern.o BTF not found"))
 		return;
 
-	d = btf_dump__new(btf, btf_dump_snprintf, str, NULL);
+	d = btf_dump__new(btf, NULL, &opts, btf_dump_snprintf);
 	if (!ASSERT_OK_PTR(d, "could not create BTF dump"))
-		goto out;
+		return;
 
 	test_btf_datasec(btf, d, str, "license",
 			 "SEC(\"license\") char[4] _license = (char[4])['G','P','L',];",
 			 license, sizeof(license));
-out:
-	btf_dump__free(d);
-	btf__free(btf);
 }
 
 void test_btf_dump() {
 	char str[STRSIZE];
+	struct btf_dump_opts opts = { .ctx = str };
 	struct btf_dump *d;
 	struct btf *btf;
 	int i;
@@ -850,7 +853,7 @@ void test_btf_dump() {
 	if (!ASSERT_OK_PTR(btf, "no kernel BTF found"))
 		return;
 
-	d = btf_dump__new(btf, btf_dump_snprintf, str, NULL);
+	d = btf_dump__new(btf, NULL, &opts, btf_dump_snprintf);
 	if (!ASSERT_OK_PTR(d, "could not create BTF dump"))
 		return;
 

@@ -1276,11 +1276,8 @@ static const struct attribute_group temac_attr_group = {
  * ethtool support
  */
 
-static void
-ll_temac_ethtools_get_ringparam(struct net_device *ndev,
-				struct ethtool_ringparam *ering,
-				struct kernel_ethtool_ringparam *kernel_ering,
-				struct netlink_ext_ack *extack)
+static void ll_temac_ethtools_get_ringparam(struct net_device *ndev,
+					    struct ethtool_ringparam *ering)
 {
 	struct temac_local *lp = netdev_priv(ndev);
 
@@ -1294,11 +1291,8 @@ ll_temac_ethtools_get_ringparam(struct net_device *ndev,
 	ering->tx_pending = lp->tx_bd_num;
 }
 
-static int
-ll_temac_ethtools_set_ringparam(struct net_device *ndev,
-				struct ethtool_ringparam *ering,
-				struct kernel_ethtool_ringparam *kernel_ering,
-				struct netlink_ext_ack *extack)
+static int ll_temac_ethtools_set_ringparam(struct net_device *ndev,
+					   struct ethtool_ringparam *ering)
 {
 	struct temac_local *lp = netdev_priv(ndev);
 

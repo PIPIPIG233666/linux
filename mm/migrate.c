@@ -291,7 +291,7 @@ void __migration_entry_wait(struct mm_struct *mm, pte_t *ptep,
 {
 	pte_t pte;
 	swp_entry_t entry;
-	struct folio *folio;
+	struct page *page;
 
 	spin_lock(ptl);
 	pte = *ptep;
@@ -302,17 +302,18 @@ void __migration_entry_wait(struct mm_struct *mm, pte_t *ptep,
 	if (!is_migration_entry(entry))
 		goto out;
 
-	folio = page_folio(pfn_swap_entry_to_page(entry));
+	page = pfn_swap_entry_to_page(entry);
+	page = compound_head(page);
 
 	/*
 	 * Once page cache replacement of page migration started, page_count
-	 * is zero; but we must not call folio_put_wait_locked() without
-	 * a ref. Use folio_try_get(), and just fault again if it fails.
+	 * is zero; but we must not call put_and_wait_on_page_locked() without
+	 * a ref. Use get_page_unless_zero(), and just fault again if it fails.
 	 */
-	if (!folio_try_get(folio))
+	if (!get_page_unless_zero(page))
 		goto out;
 	pte_unmap_unlock(ptep, ptl);
-	folio_put_wait_locked(folio, TASK_UNINTERRUPTIBLE);
+	put_and_wait_on_page_locked(page, TASK_UNINTERRUPTIBLE);
 	return;
 out:
 	pte_unmap_unlock(ptep, ptl);
@@ -337,16 +338,16 @@ void migration_entry_wait_huge(struct vm_area_struct *vma,
 void pmd_migration_entry_wait(struct mm_struct *mm, pmd_t *pmd)
 {
 	spinlock_t *ptl;
-	struct folio *folio;
+	struct page *page;
 
 	ptl = pmd_lock(mm, pmd);
 	if (!is_pmd_migration_entry(*pmd))
 		goto unlock;
-	folio = page_folio(pfn_swap_entry_to_page(pmd_to_swp_entry(*pmd)));
-	if (!folio_try_get(folio))
+	page = pfn_swap_entry_to_page(pmd_to_swp_entry(*pmd));
+	if (!get_page_unless_zero(page))
 		goto unlock;
 	spin_unlock(ptl);
-	folio_put_wait_locked(folio, TASK_UNINTERRUPTIBLE);
+	put_and_wait_on_page_locked(page, TASK_UNINTERRUPTIBLE);
 	return;
 unlock:
 	spin_unlock(ptl);
@@ -433,6 +434,14 @@ int folio_migrate_mapping(struct address_space *mapping,
 	}
 
 	xas_store(&xas, newfolio);
+	if (nr > 1) {
+		int i;
+
+		for (i = 1; i < nr; i++) {
+			xas_next(&xas);
+			xas_store(&xas, newfolio);
+		}
+	}
 
 	/*
 	 * Drop cache reference from old page by unfreezing

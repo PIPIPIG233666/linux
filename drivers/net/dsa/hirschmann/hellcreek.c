@@ -674,8 +674,7 @@ static int hellcreek_bridge_flags(struct dsa_switch *ds, int port,
 }
 
 static int hellcreek_port_bridge_join(struct dsa_switch *ds, int port,
-				      struct dsa_bridge bridge,
-				      bool *tx_fwd_offload)
+				      struct net_device *br)
 {
 	struct hellcreek *hellcreek = ds->priv;
 
@@ -692,7 +691,7 @@ static int hellcreek_port_bridge_join(struct dsa_switch *ds, int port,
 }
 
 static void hellcreek_port_bridge_leave(struct dsa_switch *ds, int port,
-					struct dsa_bridge bridge)
+					struct net_device *br)
 {
 	struct hellcreek *hellcreek = ds->priv;
 
@@ -711,9 +710,8 @@ static int __hellcreek_fdb_add(struct hellcreek *hellcreek,
 	u16 meta = 0;
 
 	dev_dbg(hellcreek->dev, "Add static FDB entry: MAC=%pM, MASK=0x%02x, "
-		"OBT=%d, PASS_BLOCKED=%d, REPRIO_EN=%d, PRIO=%d\n", entry->mac,
-		entry->portmask, entry->is_obt, entry->pass_blocked,
-		entry->reprio_en, entry->reprio_tc);
+		"OBT=%d, REPRIO_EN=%d, PRIO=%d\n", entry->mac, entry->portmask,
+		entry->is_obt, entry->reprio_en, entry->reprio_tc);
 
 	/* Add mac address */
 	hellcreek_write(hellcreek, entry->mac[1] | (entry->mac[0] << 8), HR_FDBWDH);
@@ -724,8 +722,6 @@ static int __hellcreek_fdb_add(struct hellcreek *hellcreek,
 	meta |= entry->portmask << HR_FDBWRM0_PORTMASK_SHIFT;
 	if (entry->is_obt)
 		meta |= HR_FDBWRM0_OBT;
-	if (entry->pass_blocked)
-		meta |= HR_FDBWRM0_PASS_BLOCKED;
 	if (entry->reprio_en) {
 		meta |= HR_FDBWRM0_REPRIO_EN;
 		meta |= entry->reprio_tc << HR_FDBWRM0_REPRIO_TC_SHIFT;
@@ -1053,7 +1049,7 @@ static void hellcreek_setup_tc_identity_mapping(struct hellcreek *hellcreek)
 
 static int hellcreek_setup_fdb(struct hellcreek *hellcreek)
 {
-	static struct hellcreek_fdb_entry l2_ptp = {
+	static struct hellcreek_fdb_entry ptp = {
 		/* MAC: 01-1B-19-00-00-00 */
 		.mac	      = { 0x01, 0x1b, 0x19, 0x00, 0x00, 0x00 },
 		.portmask     = 0x03,	/* Management ports */
@@ -1064,94 +1060,24 @@ static int hellcreek_setup_fdb(struct hellcreek *hellcreek)
 		.reprio_tc    = 6,	/* TC: 6 as per IEEE 802.1AS */
 		.reprio_en    = 1,
 	};
-	static struct hellcreek_fdb_entry udp4_ptp = {
-		/* MAC: 01-00-5E-00-01-81 */
-		.mac	      = { 0x01, 0x00, 0x5e, 0x00, 0x01, 0x81 },
-		.portmask     = 0x03,	/* Management ports */
-		.age	      = 0,
-		.is_obt	      = 0,
-		.pass_blocked = 0,
-		.is_static    = 1,
-		.reprio_tc    = 6,
-		.reprio_en    = 1,
-	};
-	static struct hellcreek_fdb_entry udp6_ptp = {
-		/* MAC: 33-33-00-00-01-81 */
-		.mac	      = { 0x33, 0x33, 0x00, 0x00, 0x01, 0x81 },
-		.portmask     = 0x03,	/* Management ports */
-		.age	      = 0,
-		.is_obt	      = 0,
-		.pass_blocked = 0,
-		.is_static    = 1,
-		.reprio_tc    = 6,
-		.reprio_en    = 1,
-	};
-	static struct hellcreek_fdb_entry l2_p2p = {
+	static struct hellcreek_fdb_entry p2p = {
 		/* MAC: 01-80-C2-00-00-0E */
 		.mac	      = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x0e },
 		.portmask     = 0x03,	/* Management ports */
 		.age	      = 0,
 		.is_obt	      = 0,
-		.pass_blocked = 1,
+		.pass_blocked = 0,
 		.is_static    = 1,
 		.reprio_tc    = 6,	/* TC: 6 as per IEEE 802.1AS */
-		.reprio_en    = 1,
-	};
-	static struct hellcreek_fdb_entry udp4_p2p = {
-		/* MAC: 01-00-5E-00-00-6B */
-		.mac	      = { 0x01, 0x00, 0x5e, 0x00, 0x00, 0x6b },
-		.portmask     = 0x03,	/* Management ports */
-		.age	      = 0,
-		.is_obt	      = 0,
-		.pass_blocked = 1,
-		.is_static    = 1,
-		.reprio_tc    = 6,
-		.reprio_en    = 1,
-	};
-	static struct hellcreek_fdb_entry udp6_p2p = {
-		/* MAC: 33-33-00-00-00-6B */
-		.mac	      = { 0x33, 0x33, 0x00, 0x00, 0x00, 0x6b },
-		.portmask     = 0x03,	/* Management ports */
-		.age	      = 0,
-		.is_obt	      = 0,
-		.pass_blocked = 1,
-		.is_static    = 1,
-		.reprio_tc    = 6,
-		.reprio_en    = 1,
-	};
-	static struct hellcreek_fdb_entry stp = {
-		/* MAC: 01-80-C2-00-00-00 */
-		.mac	      = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 },
-		.portmask     = 0x03,	/* Management ports */
-		.age	      = 0,
-		.is_obt	      = 0,
-		.pass_blocked = 1,
-		.is_static    = 1,
-		.reprio_tc    = 6,
 		.reprio_en    = 1,
 	};
 	int ret;
 
 	mutex_lock(&hellcreek->reg_lock);
-	ret = __hellcreek_fdb_add(hellcreek, &l2_ptp);
+	ret = __hellcreek_fdb_add(hellcreek, &ptp);
 	if (ret)
 		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &udp4_ptp);
-	if (ret)
-		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &udp6_ptp);
-	if (ret)
-		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &l2_p2p);
-	if (ret)
-		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &udp4_p2p);
-	if (ret)
-		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &udp6_p2p);
-	if (ret)
-		goto out;
-	ret = __hellcreek_fdb_add(hellcreek, &stp);
+	ret = __hellcreek_fdb_add(hellcreek, &p2p);
 out:
 	mutex_unlock(&hellcreek->reg_lock);
 
@@ -1458,19 +1384,14 @@ static void hellcreek_teardown(struct dsa_switch *ds)
 	dsa_devlink_resources_unregister(ds);
 }
 
-static void hellcreek_phylink_get_caps(struct dsa_switch *ds, int port,
-				       struct phylink_config *config)
+static void hellcreek_phylink_validate(struct dsa_switch *ds, int port,
+				       unsigned long *supported,
+				       struct phylink_link_state *state)
 {
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 	struct hellcreek *hellcreek = ds->priv;
 
-	__set_bit(PHY_INTERFACE_MODE_MII, config->supported_interfaces);
-	__set_bit(PHY_INTERFACE_MODE_RGMII, config->supported_interfaces);
-
-	/* Include GMII - the hardware does not support this interface
-	 * mode, but it's the default interface mode for phylib, so we
-	 * need it for compatibility with existing DT.
-	 */
-	__set_bit(PHY_INTERFACE_MODE_GMII, config->supported_interfaces);
+	dev_dbg(hellcreek->dev, "Phylink validate for port %d\n", port);
 
 	/* The MAC settings are a hardware configuration option and cannot be
 	 * changed at run time or by strapping. Therefore the attached PHYs
@@ -1478,9 +1399,12 @@ static void hellcreek_phylink_get_caps(struct dsa_switch *ds, int port,
 	 * by the hardware.
 	 */
 	if (hellcreek->pdata->is_100_mbits)
-		config->mac_capabilities = MAC_100FD;
+		phylink_set(mask, 100baseT_Full);
 	else
-		config->mac_capabilities = MAC_1000FD;
+		phylink_set(mask, 1000baseT_Full);
+
+	linkmode_and(supported, supported, mask);
+	linkmode_and(state->advertising, state->advertising, mask);
 }
 
 static int
@@ -1831,7 +1755,7 @@ static const struct dsa_switch_ops hellcreek_ds_ops = {
 	.get_strings	       = hellcreek_get_strings,
 	.get_tag_protocol      = hellcreek_get_tag_protocol,
 	.get_ts_info	       = hellcreek_get_ts_info,
-	.phylink_get_caps      = hellcreek_phylink_get_caps,
+	.phylink_validate      = hellcreek_phylink_validate,
 	.port_bridge_flags     = hellcreek_bridge_flags,
 	.port_bridge_join      = hellcreek_port_bridge_join,
 	.port_bridge_leave     = hellcreek_port_bridge_leave,

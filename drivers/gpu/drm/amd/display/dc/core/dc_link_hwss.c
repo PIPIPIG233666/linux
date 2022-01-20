@@ -71,7 +71,6 @@ void dp_source_sequence_trace(struct dc_link *link, uint8_t dp_test_mode)
 
 void dp_enable_link_phy(
 	struct dc_link *link,
-	const struct link_resource *link_res,
 	enum signal_type signal,
 	enum clock_source_id clock_source,
 	const struct dc_link_settings *link_settings)
@@ -136,7 +135,7 @@ void dp_enable_link_phy(
 
 #if defined(CONFIG_DRM_AMD_DC_DCN)
 	if (dp_get_link_encoding_format(link_settings) == DP_128b_132b_ENCODING) {
-		enable_dp_hpo_output(link, link_res, link_settings);
+		enable_dp_hpo_output(link, link_settings);
 	} else if (dp_get_link_encoding_format(link_settings) == DP_8b_10b_ENCODING) {
 		if (dc_is_dp_sst_signal(signal)) {
 			link_enc->funcs->enable_dp_output(
@@ -237,13 +236,12 @@ bool edp_receiver_ready_T7(struct dc_link *link)
 	return result;
 }
 
-void dp_disable_link_phy(struct dc_link *link, const struct link_resource *link_res,
-		enum signal_type signal)
+void dp_disable_link_phy(struct dc_link *link, enum signal_type signal)
 {
 	struct dc  *dc = link->ctx->dc;
 	struct dmcu *dmcu = dc->res_pool->dmcu;
 #if defined(CONFIG_DRM_AMD_DC_DCN)
-	struct hpo_dp_link_encoder *hpo_link_enc = link_res->hpo_dp_link_enc;
+	struct hpo_dp_link_encoder *hpo_link_enc = link->hpo_dp_link_enc;
 #endif
 	struct link_encoder *link_enc;
 
@@ -262,7 +260,7 @@ void dp_disable_link_phy(struct dc_link *link, const struct link_resource *link_
 			link->dc->hwss.edp_backlight_control(link, false);
 #if defined(CONFIG_DRM_AMD_DC_DCN)
 		if (dp_get_link_encoding_format(&link->cur_link_settings) == DP_128b_132b_ENCODING)
-			disable_dp_hpo_output(link, link_res, signal);
+			disable_dp_hpo_output(link, signal);
 		else
 			link_enc->funcs->disable_output(link_enc, signal);
 #else
@@ -276,7 +274,7 @@ void dp_disable_link_phy(struct dc_link *link, const struct link_resource *link_
 #if defined(CONFIG_DRM_AMD_DC_DCN)
 		if (dp_get_link_encoding_format(&link->cur_link_settings) == DP_128b_132b_ENCODING &&
 				hpo_link_enc)
-			disable_dp_hpo_output(link, link_res, signal);
+			disable_dp_hpo_output(link, signal);
 		else
 			link_enc->funcs->disable_output(link_enc, signal);
 #else
@@ -296,14 +294,13 @@ void dp_disable_link_phy(struct dc_link *link, const struct link_resource *link_
 		dc->clk_mgr->funcs->notify_link_rate_change(dc->clk_mgr, link);
 }
 
-void dp_disable_link_phy_mst(struct dc_link *link, const struct link_resource *link_res,
-		enum signal_type signal)
+void dp_disable_link_phy_mst(struct dc_link *link, enum signal_type signal)
 {
 	/* MST disable link only when no stream use the link */
 	if (link->mst_stream_alloc_table.stream_count > 0)
 		return;
 
-	dp_disable_link_phy(link, link_res, signal);
+	dp_disable_link_phy(link, signal);
 
 	/* set the sink to SST mode after disabling the link */
 	dp_enable_mst_on_sink(link, false);
@@ -311,7 +308,6 @@ void dp_disable_link_phy_mst(struct dc_link *link, const struct link_resource *l
 
 bool dp_set_hw_training_pattern(
 	struct dc_link *link,
-	const struct link_resource *link_res,
 	enum dc_dp_training_pattern pattern,
 	uint32_t offset)
 {
@@ -342,7 +338,7 @@ bool dp_set_hw_training_pattern(
 		break;
 	}
 
-	dp_set_hw_test_pattern(link, link_res, test_pattern, NULL, 0);
+	dp_set_hw_test_pattern(link, test_pattern, NULL, 0);
 
 	return true;
 }
@@ -353,7 +349,6 @@ bool dp_set_hw_training_pattern(
 #endif
 void dp_set_hw_lane_settings(
 	struct dc_link *link,
-	const struct link_resource *link_res,
 	const struct link_training_settings *link_settings,
 	uint32_t offset)
 {
@@ -366,8 +361,8 @@ void dp_set_hw_lane_settings(
 #if defined(CONFIG_DRM_AMD_DC_DCN)
 	if (dp_get_link_encoding_format(&link_settings->link_settings) ==
 			DP_128b_132b_ENCODING) {
-		link_res->hpo_dp_link_enc->funcs->set_ffe(
-				link_res->hpo_dp_link_enc,
+		link->hpo_dp_link_enc->funcs->set_ffe(
+				link->hpo_dp_link_enc,
 				&link_settings->link_settings,
 				link_settings->lane_settings[0].FFE_PRESET.raw);
 	} else if (dp_get_link_encoding_format(&link_settings->link_settings)
@@ -384,7 +379,6 @@ void dp_set_hw_lane_settings(
 
 void dp_set_hw_test_pattern(
 	struct dc_link *link,
-	const struct link_resource *link_res,
 	enum dp_test_pattern test_pattern,
 	uint8_t *custom_pattern,
 	uint32_t custom_pattern_size)
@@ -412,8 +406,8 @@ void dp_set_hw_test_pattern(
 #if defined(CONFIG_DRM_AMD_DC_DCN)
 	switch (link_encoding_format) {
 	case DP_128b_132b_ENCODING:
-		link_res->hpo_dp_link_enc->funcs->set_link_test_pattern(
-				link_res->hpo_dp_link_enc, &pattern_param);
+		link->hpo_dp_link_enc->funcs->set_link_test_pattern(
+				link->hpo_dp_link_enc, &pattern_param);
 		break;
 	case DP_8b_10b_ENCODING:
 		ASSERT(encoder);
@@ -452,7 +446,7 @@ void dp_retrain_link_dp_test(struct dc_link *link,
 					pipes[i].stream_res.stream_enc);
 
 			/* disable any test pattern that might be active */
-			dp_set_hw_test_pattern(link, &pipes[i].link_res,
+			dp_set_hw_test_pattern(link,
 					DP_TEST_PATTERN_VIDEO_MODE, NULL, 0);
 
 			dp_receiver_power_ctrl(link, false);
@@ -769,9 +763,7 @@ static enum phyd32clk_clock_source get_phyd32clk_src(struct dc_link *link)
 	}
 }
 
-void enable_dp_hpo_output(struct dc_link *link,
-		const struct link_resource *link_res,
-		const struct dc_link_settings *link_settings)
+void enable_dp_hpo_output(struct dc_link *link, const struct dc_link_settings *link_settings)
 {
 	const struct dc *dc = link->dc;
 	enum phyd32clk_clock_source phyd32clk;
@@ -797,11 +789,10 @@ void enable_dp_hpo_output(struct dc_link *link,
 		}
 	} else {
 		/* DP2.0 HW: call transmitter control to enable PHY */
-		link_res->hpo_dp_link_enc->funcs->enable_link_phy(
-				link_res->hpo_dp_link_enc,
+		link->hpo_dp_link_enc->funcs->enable_link_phy(
+				link->hpo_dp_link_enc,
 				link_settings,
-				link->link_enc->transmitter,
-				link->link_enc->hpd_source);
+				link->link_enc->transmitter);
 	}
 
 	/* DCCG muxing and DTBCLK DTO */
@@ -815,26 +806,24 @@ void enable_dp_hpo_output(struct dc_link *link,
 		phyd32clk = get_phyd32clk_src(link);
 		dc->res_pool->dccg->funcs->enable_symclk32_le(
 				dc->res_pool->dccg,
-				link_res->hpo_dp_link_enc->inst,
+				link->hpo_dp_link_enc->inst,
 				phyd32clk);
-		link_res->hpo_dp_link_enc->funcs->link_enable(
-				link_res->hpo_dp_link_enc,
-				link_settings->lane_count);
+		link->hpo_dp_link_enc->funcs->link_enable(
+					link->hpo_dp_link_enc,
+					link_settings->lane_count);
 	}
 }
 
-void disable_dp_hpo_output(struct dc_link *link,
-		const struct link_resource *link_res,
-		enum signal_type signal)
+void disable_dp_hpo_output(struct dc_link *link, enum signal_type signal)
 {
 	const struct dc *dc = link->dc;
 
-	link_res->hpo_dp_link_enc->funcs->link_disable(link_res->hpo_dp_link_enc);
+	link->hpo_dp_link_enc->funcs->link_disable(link->hpo_dp_link_enc);
 
 	if (IS_FPGA_MAXIMUS_DC(dc->ctx->dce_environment)) {
 		dc->res_pool->dccg->funcs->disable_symclk32_le(
 					dc->res_pool->dccg,
-					link_res->hpo_dp_link_enc->inst);
+					link->hpo_dp_link_enc->inst);
 
 		dc->res_pool->dccg->funcs->set_physymclk(
 					dc->res_pool->dccg,
@@ -845,8 +834,8 @@ void disable_dp_hpo_output(struct dc_link *link,
 		dm_set_phyd32clk(dc->ctx, 0);
 	} else {
 		/* DP2.0 HW: call transmitter control to disable PHY */
-		link_res->hpo_dp_link_enc->funcs->disable_link_phy(
-				link_res->hpo_dp_link_enc,
+		link->hpo_dp_link_enc->funcs->disable_link_phy(
+				link->hpo_dp_link_enc,
 				signal);
 	}
 }

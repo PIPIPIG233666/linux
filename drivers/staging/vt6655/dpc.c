@@ -80,7 +80,7 @@ static bool vnt_rx_data(struct vnt_private *priv, struct sk_buff *skb,
 	RFvRSSITodBm(priv, *rssi, &rx_dbm);
 
 	priv->byBBPreEDRSSI = (u8)rx_dbm + 1;
-	priv->current_rssi = *rssi;
+	priv->uCurrRSSI = *rssi;
 
 	skb_pull(skb, 4);
 	skb_trim(skb, frame_size);

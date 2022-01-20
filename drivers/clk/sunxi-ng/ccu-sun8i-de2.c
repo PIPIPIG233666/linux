@@ -5,8 +5,8 @@
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
-#include <linux/module.h>
-#include <linux/of_device.h>
+#include <linux/of_address.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 
@@ -394,7 +394,4 @@ static struct platform_driver sunxi_de2_clk_driver = {
 		.of_match_table	= sunxi_de2_clk_ids,
 	},
 };
-module_platform_driver(sunxi_de2_clk_driver);
-
-MODULE_IMPORT_NS(SUNXI_CCU);
-MODULE_LICENSE("GPL");
+builtin_platform_driver(sunxi_de2_clk_driver);

@@ -766,7 +766,6 @@ static int cma_resolve_ib_dev(struct rdma_id_private *id_priv)
 	unsigned int p;
 	u16 pkey, index;
 	enum ib_port_state port_state;
-	int ret;
 	int i;
 
 	cma_dev = NULL;
@@ -785,14 +784,9 @@ static int cma_resolve_ib_dev(struct rdma_id_private *id_priv)
 
 			if (ib_get_cached_port_state(cur_dev->device, p, &port_state))
 				continue;
-
-			for (i = 0; i < cur_dev->device->port_data[p].immutable.gid_tbl_len;
-			     ++i) {
-				ret = rdma_query_gid(cur_dev->device, p, i,
-						     &gid);
-				if (ret)
-					continue;
-
+			for (i = 0; !rdma_query_gid(cur_dev->device,
+						    p, i, &gid);
+			     i++) {
 				if (!memcmp(&gid, dgid, sizeof(gid))) {
 					cma_dev = cur_dev;
 					sgid = gid;
@@ -4039,7 +4033,8 @@ static int cma_resolve_ib_udp(struct rdma_id_private *id_priv,
 
 	memset(&req, 0, sizeof req);
 	offset = cma_user_data_offset(id_priv);
-	if (check_add_overflow(offset, conn_param->private_data_len, &req.private_data_len))
+	req.private_data_len = offset + conn_param->private_data_len;
+	if (req.private_data_len < conn_param->private_data_len)
 		return -EINVAL;
 
 	if (req.private_data_len) {
@@ -4098,7 +4093,8 @@ static int cma_connect_ib(struct rdma_id_private *id_priv,
 
 	memset(&req, 0, sizeof req);
 	offset = cma_user_data_offset(id_priv);
-	if (check_add_overflow(offset, conn_param->private_data_len, &req.private_data_len))
+	req.private_data_len = offset + conn_param->private_data_len;
+	if (req.private_data_len < conn_param->private_data_len)
 		return -EINVAL;
 
 	if (req.private_data_len) {

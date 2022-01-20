@@ -53,18 +53,15 @@ struct exception_table_entry {
 /*
  * ASM_EXCEPTIONTABLE_ENTRY_EFAULT() creates a special exception table entry
  * (with lowest bit set) for which the fault handler in fixup_exception() will
- * load -EFAULT into %r29 for a read or write fault, and zeroes the target
+ * load -EFAULT into %r8 for a read or write fault, and zeroes the target
  * register in case of a read fault in get_user().
  */
-#define ASM_EXCEPTIONTABLE_REG	29
-#define ASM_EXCEPTIONTABLE_VAR(__variable)		\
-	register long __variable __asm__ ("r29") = 0
 #define ASM_EXCEPTIONTABLE_ENTRY_EFAULT( fault_addr, except_addr )\
 	ASM_EXCEPTIONTABLE_ENTRY( fault_addr, except_addr + 1)
 
 #define __get_user_internal(sr, val, ptr)		\
 ({							\
-	ASM_EXCEPTIONTABLE_VAR(__gu_err);		\
+	register long __gu_err __asm__ ("r8") = 0;	\
 							\
 	switch (sizeof(*(ptr))) {			\
 	case 1: __get_user_asm(sr, val, "ldb", ptr); break; \
@@ -134,7 +131,7 @@ struct exception_table_entry {
 
 #define __put_user_internal(sr, x, ptr)				\
 ({								\
-	ASM_EXCEPTIONTABLE_VAR(__pu_err);		      	\
+	register long __pu_err __asm__ ("r8") = 0;      	\
         __typeof__(*(ptr)) __x = (__typeof__(*(ptr)))(x);	\
 								\
 	switch (sizeof(*(ptr))) {				\
@@ -171,8 +168,7 @@ struct exception_table_entry {
  * gcc knows about, so there are no aliasing issues. These macros must
  * also be aware that fixups are executed in the context of the fault,
  * and any registers used there must be listed as clobbers.
- * The register holding the possible EFAULT error (ASM_EXCEPTIONTABLE_REG)
- * is already listed as input and output register.
+ * r8 is already listed as err.
  */
 
 #define __put_user_asm(sr, stx, x, ptr)				\

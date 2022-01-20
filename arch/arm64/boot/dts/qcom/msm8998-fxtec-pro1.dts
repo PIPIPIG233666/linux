@@ -29,6 +29,7 @@
 
 	gpio-hall-sensors {
 		compatible = "gpio-keys";
+		input-name = "hall-sensors";
 		label = "Hall sensors";
 		pinctrl-names = "default";
 		pinctrl-0 = <&hall_sensor1_default>;
@@ -45,6 +46,7 @@
 
 	gpio-kb-extra-keys {
 		compatible = "gpio-keys";
+		input-name = "extra-kb-keys";
 		label = "Keyboard extra keys";
 		pinctrl-names = "default";
 		pinctrl-0 = <&gpio_kb_pins_extra>;
@@ -100,6 +102,7 @@
 
 	gpio-keys {
 		compatible = "gpio-keys";
+		input-name = "side-buttons";
 		label = "Side buttons";
 		#address-cells = <1>;
 		#size-cells = <0>;

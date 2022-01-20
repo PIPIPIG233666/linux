@@ -1204,42 +1204,42 @@ static int nfs_compare_super(struct super_block *sb, struct fs_context *fc)
 }
 
 #ifdef CONFIG_NFS_FSCACHE
-static int nfs_get_cache_cookie(struct super_block *sb,
-				struct nfs_fs_context *ctx)
+static void nfs_get_cache_cookie(struct super_block *sb,
+				 struct nfs_fs_context *ctx)
 {
 	struct nfs_server *nfss = NFS_SB(sb);
 	char *uniq = NULL;
 	int ulen = 0;
 
+	nfss->fscache_key = NULL;
 	nfss->fscache = NULL;
 
 	if (!ctx)
-		return 0;
+		return;
 
 	if (ctx->clone_data.sb) {
 		struct nfs_server *mnt_s = NFS_SB(ctx->clone_data.sb);
 		if (!(mnt_s->options & NFS_OPTION_FSCACHE))
-			return 0;
-		if (mnt_s->fscache_uniq) {
-			uniq = mnt_s->fscache_uniq;
-			ulen = strlen(uniq);
+			return;
+		if (mnt_s->fscache_key) {
+			uniq = mnt_s->fscache_key->key.uniquifier;
+			ulen = mnt_s->fscache_key->key.uniq_len;
 		}
 	} else {
 		if (!(ctx->options & NFS_OPTION_FSCACHE))
-			return 0;
+			return;
 		if (ctx->fscache_uniq) {
 			uniq = ctx->fscache_uniq;
 			ulen = strlen(ctx->fscache_uniq);
 		}
 	}
 
-	return nfs_fscache_get_super_cookie(sb, uniq, ulen);
+	nfs_fscache_get_super_cookie(sb, uniq, ulen);
 }
 #else
-static int nfs_get_cache_cookie(struct super_block *sb,
-				struct nfs_fs_context *ctx)
+static void nfs_get_cache_cookie(struct super_block *sb,
+				 struct nfs_fs_context *ctx)
 {
-	return 0;
 }
 #endif
 
@@ -1299,9 +1299,7 @@ int nfs_get_tree_common(struct fs_context *fc)
 			s->s_blocksize_bits = bsize;
 			s->s_blocksize = 1U << bsize;
 		}
-		error = nfs_get_cache_cookie(s, ctx);
-		if (error < 0)
-			goto error_splat_super;
+		nfs_get_cache_cookie(s, ctx);
 	}
 
 	error = nfs_get_root(s, fc);

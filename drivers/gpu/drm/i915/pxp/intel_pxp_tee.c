@@ -4,10 +4,8 @@
  */
 
 #include <linux/component.h>
-
-#include <drm/i915_pxp_tee_interface.h>
-#include <drm/i915_component.h>
-
+#include "drm/i915_pxp_tee_interface.h"
+#include "drm/i915_component.h"
 #include "i915_drv.h"
 #include "intel_pxp.h"
 #include "intel_pxp_session.h"
@@ -16,9 +14,7 @@
 
 static inline struct intel_pxp *i915_dev_to_pxp(struct device *i915_kdev)
 {
-	struct drm_i915_private *i915 = kdev_to_i915(i915_kdev);
-
-	return &to_gt(i915)->pxp;
+	return &kdev_to_i915(i915_kdev)->gt.pxp;
 }
 
 static int intel_pxp_tee_io_message(struct intel_pxp *pxp,

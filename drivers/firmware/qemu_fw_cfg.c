@@ -395,7 +395,7 @@ static void fw_cfg_sysfs_cache_cleanup(void)
 	}
 }
 
-/* per-entry attributes and show methods */
+/* default_attrs: per-entry attributes and show methods */
 
 #define FW_CFG_SYSFS_ATTR(_attr) \
 struct fw_cfg_sysfs_attribute fw_cfg_sysfs_attr_##_attr = { \
@@ -428,7 +428,6 @@ static struct attribute *fw_cfg_sysfs_entry_attrs[] = {
 	&fw_cfg_sysfs_attr_name.attr,
 	NULL,
 };
-ATTRIBUTE_GROUPS(fw_cfg_sysfs_entry);
 
 /* sysfs_ops: find fw_cfg_[entry, attribute] and call appropriate show method */
 static ssize_t fw_cfg_sysfs_attr_show(struct kobject *kobj, struct attribute *a,
@@ -455,7 +454,7 @@ static void fw_cfg_sysfs_release_entry(struct kobject *kobj)
 
 /* kobj_type: ties together all properties required to register an entry */
 static struct kobj_type fw_cfg_sysfs_entry_ktype = {
-	.default_groups = fw_cfg_sysfs_entry_groups,
+	.default_attrs = fw_cfg_sysfs_entry_attrs,
 	.sysfs_ops = &fw_cfg_sysfs_attr_ops,
 	.release = fw_cfg_sysfs_release_entry,
 };

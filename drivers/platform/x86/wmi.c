@@ -57,11 +57,6 @@ static_assert(sizeof(typeof_member(struct guid_block, guid)) == 16);
 static_assert(sizeof(struct guid_block) == 20);
 static_assert(__alignof__(struct guid_block) == 1);
 
-enum {	/* wmi_block flags */
-	WMI_READ_TAKES_NO_ARGS,
-	WMI_PROBED,
-};
-
 struct wmi_block {
 	struct wmi_device dev;
 	struct list_head list;
@@ -72,7 +67,8 @@ struct wmi_block {
 	wmi_notify_handler handler;
 	void *handler_data;
 	u64 req_buf_size;
-	unsigned long flags;
+
+	bool read_takes_no_args;
 };
 
 
@@ -371,7 +367,7 @@ static acpi_status __query_block(struct wmi_block *wblock, u8 instance,
 	wq_params[0].type = ACPI_TYPE_INTEGER;
 	wq_params[0].integer.value = instance;
 
-	if (instance == 0 && test_bit(WMI_READ_TAKES_NO_ARGS, &wblock->flags))
+	if (instance == 0 && wblock->read_takes_no_args)
 		input.count = 0;
 
 	/*
@@ -1009,7 +1005,6 @@ static int wmi_dev_probe(struct device *dev)
 		}
 	}
 
-	set_bit(WMI_PROBED, &wblock->flags);
 	return 0;
 
 probe_misc_failure:
@@ -1026,8 +1021,6 @@ static void wmi_dev_remove(struct device *dev)
 {
 	struct wmi_block *wblock = dev_to_wblock(dev);
 	struct wmi_driver *wdriver = drv_to_wdrv(dev->driver);
-
-	clear_bit(WMI_PROBED, &wblock->flags);
 
 	if (wdriver->filter_callback) {
 		misc_deregister(&wblock->char_dev);
@@ -1120,7 +1113,7 @@ static int wmi_create_device(struct device *wmi_bus_dev,
 	 * laptops, WQxx may not be a method at all.)
 	 */
 	if (info->type != ACPI_TYPE_METHOD || info->param_count == 0)
-		set_bit(WMI_READ_TAKES_NO_ARGS, &wblock->flags);
+		wblock->read_takes_no_args = true;
 
 	kfree(info);
 
@@ -1326,17 +1319,15 @@ static void acpi_wmi_notify_handler(acpi_handle handle, u32 event,
 		return;
 
 	/* If a driver is bound, then notify the driver. */
-	if (test_bit(WMI_PROBED, &wblock->flags) && wblock->dev.dev.driver) {
+	if (wblock->dev.dev.driver) {
 		struct wmi_driver *driver = drv_to_wdrv(wblock->dev.dev.driver);
 		struct acpi_buffer evdata = { ACPI_ALLOCATE_BUFFER, NULL };
 		acpi_status status;
 
-		if (!driver->no_notify_data) {
-			status = get_event_data(wblock, &evdata);
-			if (ACPI_FAILURE(status)) {
-				dev_warn(&wblock->dev.dev, "failed to get event data\n");
-				return;
-			}
+		status = get_event_data(wblock, &evdata);
+		if (ACPI_FAILURE(status)) {
+			dev_warn(&wblock->dev.dev, "failed to get event data\n");
+			return;
 		}
 
 		if (driver->notify)

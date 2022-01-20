@@ -5,7 +5,6 @@
 
 #include <linux/clk-provider.h>
 #include <linux/io.h>
-#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
@@ -1372,7 +1371,4 @@ static struct platform_driver sun8i_r40_ccu_driver = {
 		.of_match_table	= sun8i_r40_ccu_ids,
 	},
 };
-module_platform_driver(sun8i_r40_ccu_driver);
-
-MODULE_IMPORT_NS(SUNXI_CCU);
-MODULE_LICENSE("GPL");
+builtin_platform_driver(sun8i_r40_ccu_driver);

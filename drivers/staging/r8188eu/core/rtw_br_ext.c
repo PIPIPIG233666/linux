@@ -105,10 +105,19 @@ static int skb_pull_and_merge(struct sk_buff *skb, unsigned char *src, int len)
 	return 0;
 }
 
+static unsigned long __nat25_timeout(struct adapter *priv)
+{
+	unsigned long timeout;
+
+	timeout = jiffies - NAT25_AGEING_TIME*HZ;
+
+	return timeout;
+}
+
 static int  __nat25_has_expired(struct adapter *priv,
 				struct nat25_network_db_entry *fdb)
 {
-	if (time_before_eq(fdb->ageing_timer, jiffies - NAT25_AGEING_TIME * HZ))
+	if (time_before_eq(fdb->ageing_timer, __nat25_timeout(priv)))
 		return 1;
 
 	return 0;

@@ -68,6 +68,8 @@
 
 	gpio-keys {
 		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 
 		wps {
 			label = "WPS";
@@ -136,7 +138,6 @@
 			fixed-link {
 				speed = <1000>;
 				full-duplex;
-				pause;
 			};
 		};
 

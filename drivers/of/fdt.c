@@ -482,11 +482,9 @@ static int __init early_init_dt_reserve_memory_arch(phys_addr_t base,
 	if (nomap) {
 		/*
 		 * If the memory is already reserved (by another region), we
-		 * should not allow it to be marked nomap, but don't worry
-		 * if the region isn't memory as it won't be mapped.
+		 * should not allow it to be marked nomap.
 		 */
-		if (memblock_overlaps_region(&memblock.memory, base, size) &&
-		    memblock_is_region_reserved(base, size))
+		if (memblock_is_region_reserved(base, size))
 			return -EBUSY;
 
 		return memblock_mark_nomap(base, size);
@@ -967,22 +965,18 @@ static void __init early_init_dt_check_for_elfcorehdr(unsigned long node)
 		 elfcorehdr_addr, elfcorehdr_size);
 }
 
-static unsigned long chosen_node_offset = -FDT_ERR_NOTFOUND;
+static phys_addr_t cap_mem_addr;
+static phys_addr_t cap_mem_size;
 
 /**
  * early_init_dt_check_for_usable_mem_range - Decode usable memory range
  * location from flat tree
+ * @node: reference to node containing usable memory range location ('chosen')
  */
-void __init early_init_dt_check_for_usable_mem_range(void)
+static void __init early_init_dt_check_for_usable_mem_range(unsigned long node)
 {
 	const __be32 *prop;
 	int len;
-	phys_addr_t cap_mem_addr;
-	phys_addr_t cap_mem_size;
-	unsigned long node = chosen_node_offset;
-
-	if ((long)node < 0)
-		return;
 
 	pr_debug("Looking for usable-memory-range property... ");
 
@@ -995,8 +989,6 @@ void __init early_init_dt_check_for_usable_mem_range(void)
 
 	pr_debug("cap_mem_start=%pa cap_mem_size=%pa\n", &cap_mem_addr,
 		 &cap_mem_size);
-
-	memblock_cap_memory_range(cap_mem_addr, cap_mem_size);
 }
 
 #ifdef CONFIG_SERIAL_EARLYCON
@@ -1050,14 +1042,13 @@ int __init early_init_dt_scan_chosen_stdout(void)
 /*
  * early_init_dt_scan_root - fetch the top level address and size cells
  */
-int __init early_init_dt_scan_root(void)
+int __init early_init_dt_scan_root(unsigned long node, const char *uname,
+				   int depth, void *data)
 {
 	const __be32 *prop;
-	const void *fdt = initial_boot_params;
-	int node = fdt_path_offset(fdt, "/");
 
-	if (node < 0)
-		return -ENODEV;
+	if (depth != 0)
+		return 0;
 
 	dt_root_size_cells = OF_ROOT_NODE_SIZE_CELLS_DEFAULT;
 	dt_root_addr_cells = OF_ROOT_NODE_ADDR_CELLS_DEFAULT;
@@ -1072,7 +1063,8 @@ int __init early_init_dt_scan_root(void)
 		dt_root_addr_cells = be32_to_cpup(prop);
 	pr_debug("dt_root_addr_cells = %x\n", dt_root_addr_cells);
 
-	return 0;
+	/* break now */
+	return 1;
 }
 
 u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
@@ -1086,78 +1078,73 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 /*
  * early_init_dt_scan_memory - Look for and parse memory nodes
  */
-int __init early_init_dt_scan_memory(void)
+int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
+				     int depth, void *data)
 {
-	int node;
-	const void *fdt = initial_boot_params;
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const __be32 *reg, *endp;
+	int l;
+	bool hotpluggable;
 
-	fdt_for_each_subnode(node, fdt, 0) {
-		const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-		const __be32 *reg, *endp;
-		int l;
-		bool hotpluggable;
+	/* We are scanning "memory" nodes only */
+	if (type == NULL || strcmp(type, "memory") != 0)
+		return 0;
 
-		/* We are scanning "memory" nodes only */
-		if (type == NULL || strcmp(type, "memory") != 0)
+	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
+	if (reg == NULL)
+		reg = of_get_flat_dt_prop(node, "reg", &l);
+	if (reg == NULL)
+		return 0;
+
+	endp = reg + (l / sizeof(__be32));
+	hotpluggable = of_get_flat_dt_prop(node, "hotpluggable", NULL);
+
+	pr_debug("memory scan node %s, reg size %d,\n", uname, l);
+
+	while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
+		u64 base, size;
+
+		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
+		size = dt_mem_next_cell(dt_root_size_cells, &reg);
+
+		if (size == 0)
+			continue;
+		pr_debug(" - %llx, %llx\n", base, size);
+
+		early_init_dt_add_memory_arch(base, size);
+
+		if (!hotpluggable)
 			continue;
 
-		reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
-		if (reg == NULL)
-			reg = of_get_flat_dt_prop(node, "reg", &l);
-		if (reg == NULL)
-			continue;
-
-		endp = reg + (l / sizeof(__be32));
-		hotpluggable = of_get_flat_dt_prop(node, "hotpluggable", NULL);
-
-		pr_debug("memory scan node %s, reg size %d,\n",
-			 fdt_get_name(fdt, node, NULL), l);
-
-		while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
-			u64 base, size;
-
-			base = dt_mem_next_cell(dt_root_addr_cells, &reg);
-			size = dt_mem_next_cell(dt_root_size_cells, &reg);
-
-			if (size == 0)
-				continue;
-			pr_debug(" - %llx, %llx\n", base, size);
-
-			early_init_dt_add_memory_arch(base, size);
-
-			if (!hotpluggable)
-				continue;
-
-			if (memblock_mark_hotplug(base, size))
-				pr_warn("failed to mark hotplug range 0x%llx - 0x%llx\n",
-					base, base + size);
-		}
+		if (memblock_mark_hotplug(base, size))
+			pr_warn("failed to mark hotplug range 0x%llx - 0x%llx\n",
+				base, base + size);
 	}
+
 	return 0;
 }
 
-int __init early_init_dt_scan_chosen(char *cmdline)
+int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
+				     int depth, void *data)
 {
-	int l, node;
+	int l;
 	const char *p;
 	const void *rng_seed;
-	const void *fdt = initial_boot_params;
 
-	node = fdt_path_offset(fdt, "/chosen");
-	if (node < 0)
-		node = fdt_path_offset(fdt, "/chosen@0");
-	if (node < 0)
-		return -ENOENT;
+	pr_debug("search \"chosen\", depth: %d, uname: %s\n", depth, uname);
 
-	chosen_node_offset = node;
+	if (depth != 1 || !data ||
+	    (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
+		return 0;
 
 	early_init_dt_check_for_initrd(node);
 	early_init_dt_check_for_elfcorehdr(node);
+	early_init_dt_check_for_usable_mem_range(node);
 
 	/* Retrieve command line */
 	p = of_get_flat_dt_prop(node, "bootargs", &l);
 	if (p != NULL && l > 0)
-		strlcpy(cmdline, p, min(l, COMMAND_LINE_SIZE));
+		strlcpy(data, p, min(l, COMMAND_LINE_SIZE));
 
 	/*
 	 * CONFIG_CMDLINE is meant to be a default in case nothing else
@@ -1166,18 +1153,18 @@ int __init early_init_dt_scan_chosen(char *cmdline)
 	 */
 #ifdef CONFIG_CMDLINE
 #if defined(CONFIG_CMDLINE_EXTEND)
-	strlcat(cmdline, " ", COMMAND_LINE_SIZE);
-	strlcat(cmdline, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+	strlcat(data, " ", COMMAND_LINE_SIZE);
+	strlcat(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #elif defined(CONFIG_CMDLINE_FORCE)
-	strlcpy(cmdline, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+	strlcpy(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #else
 	/* No arguments from boot loader, use kernel's  cmdl*/
-	if (!((char *)cmdline)[0])
-		strlcpy(cmdline, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+	if (!((char *)data)[0])
+		strlcpy(data, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #endif
 #endif /* CONFIG_CMDLINE */
 
-	pr_debug("Command line is: %s\n", (char *)cmdline);
+	pr_debug("Command line is: %s\n", (char *)data);
 
 	rng_seed = of_get_flat_dt_prop(node, "rng-seed", &l);
 	if (rng_seed && l > 0) {
@@ -1191,7 +1178,8 @@ int __init early_init_dt_scan_chosen(char *cmdline)
 				fdt_totalsize(initial_boot_params));
 	}
 
-	return 0;
+	/* break now */
+	return 1;
 }
 
 #ifndef MIN_MEMBLOCK_ADDR
@@ -1273,21 +1261,21 @@ bool __init early_init_dt_verify(void *params)
 
 void __init early_init_dt_scan_nodes(void)
 {
-	int rc;
+	int rc = 0;
 
 	/* Initialize {size,address}-cells info */
-	early_init_dt_scan_root();
+	of_scan_flat_dt(early_init_dt_scan_root, NULL);
 
 	/* Retrieve various information from the /chosen node */
-	rc = early_init_dt_scan_chosen(boot_command_line);
-	if (rc)
+	rc = of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
+	if (!rc)
 		pr_warn("No chosen node found, continuing without\n");
 
 	/* Setup memory, calling early_init_dt_add_memory_arch */
-	early_init_dt_scan_memory();
+	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
 
 	/* Handle linux,usable-memory-range property */
-	early_init_dt_check_for_usable_mem_range();
+	memblock_cap_memory_range(cap_mem_addr, cap_mem_size);
 }
 
 bool __init early_init_dt_scan(void *params)

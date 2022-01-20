@@ -259,7 +259,6 @@ int xfrm_dev_state_add(struct net *net, struct xfrm_state *x,
 	}
 
 	xso->dev = dev;
-	netdev_tracker_alloc(dev, &xso->dev_tracker, GFP_ATOMIC);
 	xso->real_dev = dev;
 	xso->num_exthdrs = 1;
 	xso->flags = xuo->flags;
@@ -270,7 +269,7 @@ int xfrm_dev_state_add(struct net *net, struct xfrm_state *x,
 		xso->flags = 0;
 		xso->dev = NULL;
 		xso->real_dev = NULL;
-		dev_put_track(dev, &xso->dev_tracker);
+		dev_put(dev);
 
 		if (err != -EOPNOTSUPP)
 			return err;

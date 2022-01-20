@@ -749,10 +749,7 @@ xfs_reflink_end_cow(
 }
 
 /*
- * Free all CoW staging blocks that are still referenced by the ondisk refcount
- * metadata.  The ondisk metadata does not track which inode created the
- * staging extent, so callers must ensure that there are no cached inodes with
- * live CoW staging extents.
+ * Free leftover CoW reservations that didn't get cleaned out.
  */
 int
 xfs_reflink_recover_cow(
@@ -1272,7 +1269,8 @@ xfs_reflink_zero_posteof(
 		return 0;
 
 	trace_xfs_zero_eof(ip, isize, pos - isize);
-	return xfs_zero_range(ip, isize, pos - isize, NULL);
+	return iomap_zero_range(VFS_I(ip), isize, pos - isize, NULL,
+			&xfs_buffered_write_iomap_ops);
 }
 
 /*

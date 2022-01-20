@@ -406,7 +406,7 @@ EXPORT_SYMBOL_GPL(dsa_devlink_resource_register);
 
 void dsa_devlink_resources_unregister(struct dsa_switch *ds)
 {
-	devlink_resources_unregister(ds->devlink);
+	devlink_resources_unregister(ds->devlink, NULL);
 }
 EXPORT_SYMBOL_GPL(dsa_devlink_resources_unregister);
 

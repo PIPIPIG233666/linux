@@ -308,7 +308,7 @@ static int alloc_long_term_buff(struct ibmvnic_adapter *adapter,
 	if (adapter->fw_done_rc) {
 		dev_err(dev, "Couldn't map LTB, rc = %d\n",
 			adapter->fw_done_rc);
-		rc = -EIO;
+		rc = -1;
 		goto out;
 	}
 	rc = 0;
@@ -540,15 +540,13 @@ static int init_stats_token(struct ibmvnic_adapter *adapter)
 {
 	struct device *dev = &adapter->vdev->dev;
 	dma_addr_t stok;
-	int rc;
 
 	stok = dma_map_single(dev, &adapter->stats,
 			      sizeof(struct ibmvnic_statistics),
 			      DMA_FROM_DEVICE);
-	rc = dma_mapping_error(dev, stok);
-	if (rc) {
-		dev_err(dev, "Couldn't map stats buffer, rc = %d\n", rc);
-		return rc;
+	if (dma_mapping_error(dev, stok)) {
+		dev_err(dev, "Couldn't map stats buffer\n");
+		return -1;
 	}
 
 	adapter->stats_token = stok;
@@ -657,7 +655,7 @@ static int init_rx_pools(struct net_device *netdev)
 	u64 num_pools;
 	u64 pool_size;		/* # of buffers in one pool */
 	u64 buff_size;
-	int i, j, rc;
+	int i, j;
 
 	pool_size = adapter->req_rx_add_entries_per_subcrq;
 	num_pools = adapter->req_rx_queues;
@@ -676,7 +674,7 @@ static int init_rx_pools(struct net_device *netdev)
 				   GFP_KERNEL);
 	if (!adapter->rx_pool) {
 		dev_err(dev, "Failed to allocate rx pools\n");
-		return -ENOMEM;
+		return -1;
 	}
 
 	/* Set num_active_rx_pools early. If we fail below after partial
@@ -699,7 +697,6 @@ static int init_rx_pools(struct net_device *netdev)
 					    GFP_KERNEL);
 		if (!rx_pool->free_map) {
 			dev_err(dev, "Couldn't alloc free_map %d\n", i);
-			rc = -ENOMEM;
 			goto out_release;
 		}
 
@@ -708,7 +705,6 @@ static int init_rx_pools(struct net_device *netdev)
 					   GFP_KERNEL);
 		if (!rx_pool->rx_buff) {
 			dev_err(dev, "Couldn't alloc rx buffers\n");
-			rc = -ENOMEM;
 			goto out_release;
 		}
 	}
@@ -722,9 +718,8 @@ update_ltb:
 		dev_dbg(dev, "Updating LTB for rx pool %d [%d, %d]\n",
 			i, rx_pool->size, rx_pool->buff_size);
 
-		rc = alloc_long_term_buff(adapter, &rx_pool->long_term_buff,
-					  rx_pool->size * rx_pool->buff_size);
-		if (rc)
+		if (alloc_long_term_buff(adapter, &rx_pool->long_term_buff,
+					 rx_pool->size * rx_pool->buff_size))
 			goto out;
 
 		for (j = 0; j < rx_pool->size; ++j) {
@@ -761,7 +756,7 @@ out:
 	/* We failed to allocate one or more LTBs or map them on the VIOS.
 	 * Hold onto the pools and any LTBs that we did allocate/map.
 	 */
-	return rc;
+	return -1;
 }
 
 static void release_vpd_data(struct ibmvnic_adapter *adapter)
@@ -822,13 +817,13 @@ static int init_one_tx_pool(struct net_device *netdev,
 				   sizeof(struct ibmvnic_tx_buff),
 				   GFP_KERNEL);
 	if (!tx_pool->tx_buff)
-		return -ENOMEM;
+		return -1;
 
 	tx_pool->free_map = kcalloc(pool_size, sizeof(int), GFP_KERNEL);
 	if (!tx_pool->free_map) {
 		kfree(tx_pool->tx_buff);
 		tx_pool->tx_buff = NULL;
-		return -ENOMEM;
+		return -1;
 	}
 
 	for (i = 0; i < pool_size; i++)
@@ -919,7 +914,7 @@ static int init_tx_pools(struct net_device *netdev)
 	adapter->tx_pool = kcalloc(num_pools,
 				   sizeof(struct ibmvnic_tx_pool), GFP_KERNEL);
 	if (!adapter->tx_pool)
-		return -ENOMEM;
+		return -1;
 
 	adapter->tso_pool = kcalloc(num_pools,
 				    sizeof(struct ibmvnic_tx_pool), GFP_KERNEL);
@@ -929,7 +924,7 @@ static int init_tx_pools(struct net_device *netdev)
 	if (!adapter->tso_pool) {
 		kfree(adapter->tx_pool);
 		adapter->tx_pool = NULL;
-		return -ENOMEM;
+		return -1;
 	}
 
 	/* Set num_active_tx_pools early. If we fail below after partial
@@ -1118,7 +1113,7 @@ static int ibmvnic_login(struct net_device *netdev)
 		retry = false;
 		if (retry_count > retries) {
 			netdev_warn(netdev, "Login attempts exceeded\n");
-			return -EACCES;
+			return -1;
 		}
 
 		adapter->init_done_rc = 0;
@@ -1159,26 +1154,25 @@ static int ibmvnic_login(struct net_device *netdev)
 							 timeout)) {
 				netdev_warn(netdev,
 					    "Capabilities query timed out\n");
-				return -ETIMEDOUT;
+				return -1;
 			}
 
 			rc = init_sub_crqs(adapter);
 			if (rc) {
 				netdev_warn(netdev,
 					    "SCRQ initialization failed\n");
-				return rc;
+				return -1;
 			}
 
 			rc = init_sub_crq_irqs(adapter);
 			if (rc) {
 				netdev_warn(netdev,
 					    "SCRQ irq initialization failed\n");
-				return rc;
+				return -1;
 			}
 		} else if (adapter->init_done_rc) {
-			netdev_warn(netdev, "Adapter login failed, init_done_rc = %d\n",
-				    adapter->init_done_rc);
-			return -EIO;
+			netdev_warn(netdev, "Adapter login failed\n");
+			return -1;
 		}
 	} while (retry);
 
@@ -1237,7 +1231,7 @@ static int set_link_state(struct ibmvnic_adapter *adapter, u8 link_state)
 		if (!wait_for_completion_timeout(&adapter->init_done,
 						 timeout)) {
 			netdev_err(netdev, "timeout setting link state\n");
-			return -ETIMEDOUT;
+			return -1;
 		}
 
 		if (adapter->init_done_rc == PARTIALSUCCESS) {
@@ -2048,7 +2042,7 @@ static netdev_tx_t ibmvnic_xmit(struct sk_buff *skb, struct net_device *netdev)
 
 	tx_packets++;
 	tx_bytes += skb->len;
-	txq_trans_cond_update(txq);
+	txq->trans_start = jiffies;
 	ret = NETDEV_TX_OK;
 	goto out;
 
@@ -2294,7 +2288,7 @@ static int do_reset(struct ibmvnic_adapter *adapter,
 				/* If someone else changed the adapter state
 				 * when we dropped the rtnl, fail the reset
 				 */
-				rc = -EAGAIN;
+				rc = -1;
 				goto out;
 			}
 			adapter->state = VNIC_CLOSED;
@@ -2336,8 +2330,10 @@ static int do_reset(struct ibmvnic_adapter *adapter,
 		}
 
 		rc = ibmvnic_reset_init(adapter, true);
-		if (rc)
+		if (rc) {
+			rc = IBMVNIC_INIT_FAILED;
 			goto out;
+		}
 
 		/* If the adapter was in PROBE or DOWN state prior to the reset,
 		 * exit here.
@@ -3076,9 +3072,7 @@ static u32 ibmvnic_get_link(struct net_device *netdev)
 }
 
 static void ibmvnic_get_ringparam(struct net_device *netdev,
-				  struct ethtool_ringparam *ring,
-				  struct kernel_ethtool_ringparam *kernel_ring,
-				  struct netlink_ext_ack *extack)
+				  struct ethtool_ringparam *ring)
 {
 	struct ibmvnic_adapter *adapter = netdev_priv(netdev);
 
@@ -3098,9 +3092,7 @@ static void ibmvnic_get_ringparam(struct net_device *netdev,
 }
 
 static int ibmvnic_set_ringparam(struct net_device *netdev,
-				 struct ethtool_ringparam *ring,
-				 struct kernel_ethtool_ringparam *kernel_ring,
-				 struct netlink_ext_ack *extack)
+				 struct ethtool_ringparam *ring)
 {
 	struct ibmvnic_adapter *adapter = netdev_priv(netdev);
 	int ret;
@@ -3767,7 +3759,7 @@ static int init_sub_crqs(struct ibmvnic_adapter *adapter)
 
 	allqueues = kcalloc(total_queues, sizeof(*allqueues), GFP_KERNEL);
 	if (!allqueues)
-		return -ENOMEM;
+		return -1;
 
 	for (i = 0; i < total_queues; i++) {
 		allqueues[i] = init_sub_crq_queue(adapter);
@@ -3836,7 +3828,7 @@ tx_failed:
 	for (i = 0; i < registered_queues; i++)
 		release_sub_crq_queue(adapter, allqueues[i], 1);
 	kfree(allqueues);
-	return -ENOMEM;
+	return -1;
 }
 
 static void send_request_cap(struct ibmvnic_adapter *adapter, int retry)
@@ -4195,7 +4187,7 @@ static int send_login(struct ibmvnic_adapter *adapter)
 	if (!adapter->tx_scrq || !adapter->rx_scrq) {
 		netdev_err(adapter->netdev,
 			   "RX or TX queues are not allocated, device login failed\n");
-		return -ENOMEM;
+		return -1;
 	}
 
 	release_login_buffer(adapter);
@@ -4315,7 +4307,7 @@ buf_map_failed:
 	kfree(login_buffer);
 	adapter->login_buf = NULL;
 buf_alloc_failed:
-	return -ENOMEM;
+	return -1;
 }
 
 static int send_request_map(struct ibmvnic_adapter *adapter, dma_addr_t addr,
@@ -5636,7 +5628,7 @@ static int ibmvnic_reset_init(struct ibmvnic_adapter *adapter, bool reset)
 
 	if (!wait_for_completion_timeout(&adapter->init_done, timeout)) {
 		dev_err(dev, "Initialization sequence timed out\n");
-		return -ETIMEDOUT;
+		return -1;
 	}
 
 	if (adapter->init_done_rc) {
@@ -5647,7 +5639,7 @@ static int ibmvnic_reset_init(struct ibmvnic_adapter *adapter, bool reset)
 	if (adapter->from_passive_init) {
 		adapter->state = VNIC_OPEN;
 		adapter->from_passive_init = false;
-		return -EINVAL;
+		return -1;
 	}
 
 	if (reset &&

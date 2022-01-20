@@ -14,14 +14,12 @@
 
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_bridge.h>
-#include <drm/drm_of.h>
 #include <drm/drm_panel.h>
 
 struct lvds_codec {
 	struct device *dev;
 	struct drm_bridge bridge;
 	struct drm_bridge *panel_bridge;
-	struct drm_bridge_timings timings;
 	struct regulator *vcc;
 	struct gpio_desc *powerdown_gpio;
 	u32 connector_type;
@@ -120,7 +118,7 @@ static int lvds_codec_probe(struct platform_device *pdev)
 	struct device_node *bus_node;
 	struct drm_panel *panel;
 	struct lvds_codec *lvds_codec;
-	u32 val;
+	const char *mapping;
 	int ret;
 
 	lvds_codec = devm_kzalloc(dev, sizeof(*lvds_codec), GFP_KERNEL);
@@ -176,29 +174,24 @@ static int lvds_codec_probe(struct platform_device *pdev)
 			return -ENXIO;
 		}
 
-		ret = drm_of_lvds_get_data_mapping(bus_node);
+		ret = of_property_read_string(bus_node, "data-mapping",
+					      &mapping);
 		of_node_put(bus_node);
-		if (ret == -ENODEV) {
+		if (ret < 0) {
 			dev_warn(dev, "missing 'data-mapping' DT property\n");
-		} else if (ret) {
-			dev_err(dev, "invalid 'data-mapping' DT property\n");
-			return ret;
 		} else {
-			lvds_codec->bus_format = ret;
+			if (!strcmp(mapping, "jeida-18")) {
+				lvds_codec->bus_format = MEDIA_BUS_FMT_RGB666_1X7X3_SPWG;
+			} else if (!strcmp(mapping, "jeida-24")) {
+				lvds_codec->bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA;
+			} else if (!strcmp(mapping, "vesa-24")) {
+				lvds_codec->bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG;
+			} else {
+				dev_err(dev, "invalid 'data-mapping' DT property\n");
+				return -EINVAL;
+			}
 			lvds_codec->bridge.funcs = &funcs_decoder;
 		}
-	}
-
-	/*
-	 * Encoder might sample data on different clock edge than the display,
-	 * for example OnSemi FIN3385 has a dedicated strapping pin to select
-	 * the sampling edge.
-	 */
-	if (lvds_codec->connector_type == DRM_MODE_CONNECTOR_LVDS &&
-	    !of_property_read_u32(dev->of_node, "pclk-sample", &val)) {
-		lvds_codec->timings.input_bus_flags = val ?
-			DRM_BUS_FLAG_PIXDATA_SAMPLE_POSEDGE :
-			DRM_BUS_FLAG_PIXDATA_SAMPLE_NEGEDGE;
 	}
 
 	/*
@@ -207,7 +200,6 @@ static int lvds_codec_probe(struct platform_device *pdev)
 	 * to look up.
 	 */
 	lvds_codec->bridge.of_node = dev->of_node;
-	lvds_codec->bridge.timings = &lvds_codec->timings;
 	drm_bridge_add(&lvds_codec->bridge);
 
 	platform_set_drvdata(pdev, lvds_codec);

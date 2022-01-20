@@ -29,12 +29,13 @@ static struct usb_device_id rtw_usb_id_tbl[] = {
 	/*=== Realtek demoboard ===*/
 	{USB_DEVICE(USB_VENDER_ID_REALTEK, 0x8179)}, /* 8188EUS */
 	{USB_DEVICE(USB_VENDER_ID_REALTEK, 0x0179)}, /* 8188ETV */
+	{USB_DEVICE(USB_VENDER_ID_REALTEK, 0xf179)}, /* 8188FU */
 	/*=== Customer ID ===*/
 	/****** 8188EUS ********/
 	{USB_DEVICE(0x07B8, 0x8179)}, /* Abocom - Abocom */
 	{USB_DEVICE(0x0DF6, 0x0076)}, /* Sitecom N150 v2 */
 	{USB_DEVICE(0x2001, 0x330F)}, /* DLink DWA-125 REV D1 */
-	{USB_DEVICE(0x2001, 0x3310)}, /* Dlink DWA-123 REV D1 */
+        {USB_DEVICE(0x2001, 0x3310)}, /* Dlink DWA-123 REV D1 */
 	{USB_DEVICE(0x2001, 0x3311)}, /* DLink GO-USB-N150 REV B1 */
 	{USB_DEVICE(0x2001, 0x331B)}, /* D-Link DWA-121 rev B1 */
 	{USB_DEVICE(0x056E, 0x4008)}, /* Elecom WDC-150SU2M */
@@ -69,7 +70,6 @@ static struct rtw_usb_drv *usb_drv = &rtl8188e_usb_drv;
 static struct dvobj_priv *usb_dvobj_init(struct usb_interface *usb_intf)
 {
 	int	i;
-	u8	rt_num_in_pipes = 0;
 	struct dvobj_priv *pdvobjpriv;
 	struct usb_host_config		*phost_conf;
 	struct usb_config_descriptor	*pconf_desc;
@@ -80,13 +80,14 @@ static struct dvobj_priv *usb_dvobj_init(struct usb_interface *usb_intf)
 
 	pdvobjpriv = kzalloc(sizeof(*pdvobjpriv), GFP_KERNEL);
 	if (!pdvobjpriv)
-		goto err;
+		goto exit;
 
 	pdvobjpriv->pusbintf = usb_intf;
 	pusbd = interface_to_usbdev(usb_intf);
 	pdvobjpriv->pusbdev = pusbd;
 	usb_set_intfdata(usb_intf, pdvobjpriv);
 
+	pdvobjpriv->RtNumInPipes = 0;
 	pdvobjpriv->RtNumOutPipes = 0;
 
 	phost_conf = pusbd->actconfig;
@@ -97,25 +98,27 @@ static struct dvobj_priv *usb_dvobj_init(struct usb_interface *usb_intf)
 
 	pdvobjpriv->NumInterfaces = pconf_desc->bNumInterfaces;
 	pdvobjpriv->InterfaceNumber = piface_desc->bInterfaceNumber;
+	pdvobjpriv->nr_endpoint = piface_desc->bNumEndpoints;
 
-	for (i = 0; i < piface_desc->bNumEndpoints; i++) {
+	for (i = 0; i < pdvobjpriv->nr_endpoint; i++) {
 		int ep_num;
 		pendp_desc = &phost_iface->endpoint[i].desc;
 
 		ep_num = usb_endpoint_num(pendp_desc);
 
 		if (usb_endpoint_is_bulk_in(pendp_desc)) {
-			pdvobjpriv->RtInPipe = ep_num;
-			rt_num_in_pipes++;
+			pdvobjpriv->RtInPipe[pdvobjpriv->RtNumInPipes] = ep_num;
+			pdvobjpriv->RtNumInPipes++;
+		} else if (usb_endpoint_is_int_in(pendp_desc)) {
+			pdvobjpriv->RtInPipe[pdvobjpriv->RtNumInPipes] = ep_num;
+			pdvobjpriv->RtNumInPipes++;
 		} else if (usb_endpoint_is_bulk_out(pendp_desc)) {
 			pdvobjpriv->RtOutPipe[pdvobjpriv->RtNumOutPipes] =
 				ep_num;
 			pdvobjpriv->RtNumOutPipes++;
 		}
+		pdvobjpriv->ep_num[i] = ep_num;
 	}
-
-	if (rt_num_in_pipes != 1)
-		goto err;
 
 	if (pusbd->speed == USB_SPEED_HIGH) {
 		pdvobjpriv->ishighspeed = true;
@@ -130,11 +133,9 @@ static struct dvobj_priv *usb_dvobj_init(struct usb_interface *usb_intf)
 	rtw_reset_continual_urb_error(pdvobjpriv);
 
 	usb_get_dev(pusbd);
-	return pdvobjpriv;
 
-err:
-	kfree(pdvobjpriv);
-	return NULL;
+exit:
+	return pdvobjpriv;
 }
 
 static void usb_dvobj_deinit(struct usb_interface *usb_intf)
@@ -192,7 +193,8 @@ static void rtw_dev_unload(struct adapter *padapter)
 		if (padapter->intf_stop)
 			padapter->intf_stop(padapter);
 		/* s4. */
-		rtw_stop_drv_threads(padapter);
+		if (!padapter->pwrctrlpriv.bInternalAutoSuspend)
+			rtw_stop_drv_threads(padapter);
 
 		/* s5. */
 		if (!padapter->bSurpriseRemoved) {
@@ -296,7 +298,7 @@ static int rtw_resume(struct usb_interface *pusb_intf)
 		pwrpriv->bkeepfwalive = false;
 
 	DBG_88E("bkeepfwalive(%x)\n", pwrpriv->bkeepfwalive);
-	if (netdev_open(pnetdev) != 0) {
+	if (pm_netdev_open(pnetdev, true) != 0) {
 		mutex_unlock(&pwrpriv->lock);
 		goto exit;
 	}
@@ -360,6 +362,9 @@ static struct adapter *rtw_usb_if1_init(struct dvobj_priv *dvobj,
 	SET_NETDEV_DEV(pnetdev, dvobj_to_dev(dvobj));
 	padapter = rtw_netdev_priv(pnetdev);
 
+	/* step 2. allocate HalData */
+	rtl8188eu_alloc_haldata(padapter);
+
 	padapter->intf_start = &usb_intf_start;
 	padapter->intf_stop = &usb_intf_stop;
 
@@ -381,7 +386,7 @@ static struct adapter *rtw_usb_if1_init(struct dvobj_priv *dvobj,
 
 	/* step 5. */
 	if (rtw_init_drv_sw(padapter) == _FAIL)
-		goto handle_dualmac;
+		goto free_hal_data;
 
 #ifdef CONFIG_PM
 	if (padapter->pwrctrlpriv.bSupportRemoteWakeup) {
@@ -409,7 +414,7 @@ static struct adapter *rtw_usb_if1_init(struct dvobj_priv *dvobj,
 
 	/* step 6. Tell the network stack we exist */
 	if (register_netdev(pnetdev) != 0)
-		goto handle_dualmac;
+		goto free_hal_data;
 
 	DBG_88E("bDriverStopped:%d, bSurpriseRemoved:%d, bup:%d, hw_init_completed:%d\n"
 		, padapter->bDriverStopped
@@ -420,6 +425,9 @@ static struct adapter *rtw_usb_if1_init(struct dvobj_priv *dvobj,
 
 	status = _SUCCESS;
 
+free_hal_data:
+	if (status != _SUCCESS)
+		kfree(padapter->HalData);
 handle_dualmac:
 	if (status != _SUCCESS)
 		rtw_handle_dualmac(padapter, 0);

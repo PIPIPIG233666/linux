@@ -92,7 +92,7 @@ struct pi433_device {
 	u32			rx_bytes_to_drop;
 	u32			rx_bytes_dropped;
 	unsigned int		rx_position;
-	struct mutex		rx_lock; /* protects rx_* variable accesses */
+	struct mutex		rx_lock;
 	wait_queue_head_t	rx_wait_queue;
 
 	/* fifo wait queue */

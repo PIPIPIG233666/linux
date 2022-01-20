@@ -29,9 +29,6 @@ properties:
       - const: config
       - const: atu
 
-  interrupts:
-    maxItems: 1
-
   power-domains:
     maxItems: 1
 
@@ -90,6 +87,7 @@ examples:
         ti,syscon-pcie-id = <&pcie_devid>;
         ti,syscon-pcie-mode = <&pcie0_mode>;
         bus-range = <0x0 0xff>;
+        num-viewport = <16>;
         max-link-speed = <2>;
         dma-coherent;
         interrupts = <GIC_SPI 340 IRQ_TYPE_EDGE_RISING>;

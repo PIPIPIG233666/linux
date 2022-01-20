@@ -15,9 +15,9 @@
 static void mock_region_put_pages(struct drm_i915_gem_object *obj,
 				  struct sg_table *pages)
 {
-	i915_refct_sgt_put(obj->mm.rsgt);
-	obj->mm.rsgt = NULL;
 	intel_region_ttm_resource_free(obj->mm.region, obj->mm.res);
+	sg_free_table(pages);
+	kfree(pages);
 }
 
 static int mock_region_get_pages(struct drm_i915_gem_object *obj)
@@ -36,14 +36,12 @@ static int mock_region_get_pages(struct drm_i915_gem_object *obj)
 	if (IS_ERR(obj->mm.res))
 		return PTR_ERR(obj->mm.res);
 
-	obj->mm.rsgt = intel_region_ttm_resource_to_rsgt(obj->mm.region,
-							 obj->mm.res);
-	if (IS_ERR(obj->mm.rsgt)) {
-		err = PTR_ERR(obj->mm.rsgt);
+	pages = intel_region_ttm_resource_to_st(obj->mm.region, obj->mm.res);
+	if (IS_ERR(pages)) {
+		err = PTR_ERR(pages);
 		goto err_free_resource;
 	}
 
-	pages = &obj->mm.rsgt->table;
 	__i915_gem_object_set_pages(obj, pages, i915_sg_dma_sizes(pages->sgl));
 
 	return 0;
@@ -84,16 +82,13 @@ static int mock_object_init(struct intel_memory_region *mem,
 	return 0;
 }
 
-static int mock_region_fini(struct intel_memory_region *mem)
+static void mock_region_fini(struct intel_memory_region *mem)
 {
 	struct drm_i915_private *i915 = mem->i915;
 	int instance = mem->instance;
-	int ret;
 
-	ret = intel_region_ttm_fini(mem);
+	intel_region_ttm_fini(mem);
 	ida_free(&i915->selftest.mock_region_instances, instance);
-
-	return ret;
 }
 
 static const struct intel_memory_region_ops mock_region_ops = {

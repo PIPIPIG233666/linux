@@ -646,7 +646,6 @@
 
 &venus {
 	status = "okay";
-	firmware-name = "qcom/sdm845/oneplus6/venus.mbn";
 };
 
 &wifi {

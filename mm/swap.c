@@ -1124,24 +1124,24 @@ void __pagevec_lru_add(struct pagevec *pvec)
 }
 
 /**
- * folio_batch_remove_exceptionals() - Prune non-folios from a batch.
- * @fbatch: The batch to prune
+ * pagevec_remove_exceptionals - pagevec exceptionals pruning
+ * @pvec:	The pagevec to prune
  *
- * find_get_entries() fills a batch with both folios and shadow/swap/DAX
- * entries.  This function prunes all the non-folio entries from @fbatch
- * without leaving holes, so that it can be passed on to folio-only batch
- * operations.
+ * find_get_entries() fills both pages and XArray value entries (aka
+ * exceptional entries) into the pagevec.  This function prunes all
+ * exceptionals from @pvec without leaving holes, so that it can be
+ * passed on to page-only pagevec operations.
  */
-void folio_batch_remove_exceptionals(struct folio_batch *fbatch)
+void pagevec_remove_exceptionals(struct pagevec *pvec)
 {
-	unsigned int i, j;
+	int i, j;
 
-	for (i = 0, j = 0; i < folio_batch_count(fbatch); i++) {
-		struct folio *folio = fbatch->folios[i];
-		if (!xa_is_value(folio))
-			fbatch->folios[j++] = folio;
+	for (i = 0, j = 0; i < pagevec_count(pvec); i++) {
+		struct page *page = pvec->pages[i];
+		if (!xa_is_value(page))
+			pvec->pages[j++] = page;
 	}
-	fbatch->nr = j;
+	pvec->nr = j;
 }
 
 /**

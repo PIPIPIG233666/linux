@@ -878,13 +878,14 @@ static long _zcrypt_send_cprb(bool userspace, struct ap_perms *perms,
 
 	/*
 	 * If a valid target domain is set and this domain is NOT a usage
-	 * domain but a control only domain, autoselect target domain.
+	 * domain but a control only domain, use the default domain as target.
 	 */
 	tdom = *domain;
 	if (tdom < AP_DOMAINS &&
 	    !ap_test_config_usage_domain(tdom) &&
-	    ap_test_config_ctrl_domain(tdom))
-		tdom = AUTOSEL_DOM;
+	    ap_test_config_ctrl_domain(tdom) &&
+	    ap_domain_index >= 0)
+		tdom = ap_domain_index;
 
 	pref_zc = NULL;
 	pref_zq = NULL;

@@ -66,16 +66,12 @@ static void release_fake_lmem_bar(struct intel_memory_region *mem)
 			   DMA_ATTR_FORCE_CONTIGUOUS);
 }
 
-static int
+static void
 region_lmem_release(struct intel_memory_region *mem)
 {
-	int ret;
-
-	ret = intel_region_ttm_fini(mem);
+	intel_region_ttm_fini(mem);
 	io_mapping_fini(&mem->iomap);
 	release_fake_lmem_bar(mem);
-
-	return ret;
 }
 
 static int
@@ -162,7 +158,7 @@ intel_gt_setup_fake_lmem(struct intel_gt *gt)
 static bool get_legacy_lowmem_region(struct intel_uncore *uncore,
 				     u64 *start, u32 *size)
 {
-	if (!IS_DG1_GRAPHICS_STEP(uncore->i915, STEP_A0, STEP_C0))
+	if (!IS_DG1_GT_STEP(uncore->i915, STEP_A0, STEP_C0))
 		return false;
 
 	*start = 0;
@@ -197,7 +193,6 @@ static struct intel_memory_region *setup_lmem(struct intel_gt *gt)
 	struct intel_uncore *uncore = gt->uncore;
 	struct pci_dev *pdev = to_pci_dev(i915->drm.dev);
 	struct intel_memory_region *mem;
-	resource_size_t min_page_size;
 	resource_size_t io_start;
 	resource_size_t lmem_size;
 	int err;
@@ -212,12 +207,10 @@ static struct intel_memory_region *setup_lmem(struct intel_gt *gt)
 	if (GEM_WARN_ON(lmem_size > pci_resource_len(pdev, 2)))
 		return ERR_PTR(-ENODEV);
 
-	min_page_size = HAS_64K_PAGES(i915) ? I915_GTT_PAGE_SIZE_64K :
-						I915_GTT_PAGE_SIZE_4K;
 	mem = intel_memory_region_create(i915,
 					 0,
 					 lmem_size,
-					 min_page_size,
+					 I915_GTT_PAGE_SIZE_4K,
 					 io_start,
 					 INTEL_MEMORY_LOCAL,
 					 0,
@@ -238,7 +231,7 @@ static struct intel_memory_region *setup_lmem(struct intel_gt *gt)
 	return mem;
 
 err_region_put:
-	intel_memory_region_destroy(mem);
+	intel_memory_region_put(mem);
 	return ERR_PTR(err);
 }
 

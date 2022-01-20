@@ -10,6 +10,9 @@
 #include <asm/asm-extable.h>
 #include <asm/ptrace.h>
 
+typedef bool (*ex_handler_t)(const struct exception_table_entry *,
+			     struct pt_regs *);
+
 static inline unsigned long
 get_ex_fixup(const struct exception_table_entry *ex)
 {

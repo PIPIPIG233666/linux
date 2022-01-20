@@ -132,13 +132,6 @@ int mlx5dr_cmd_query_device(struct mlx5_core_dev *mdev,
 
 	caps->isolate_vl_tc = MLX5_CAP_GEN(mdev, isolate_vl_tc_new);
 
-	/* geneve_tlv_option_0_exist is the indication of
-	 * STE support for lookup type flex_parser_ok
-	 */
-	caps->flex_parser_ok_bits_supp =
-		MLX5_CAP_FLOWTABLE(mdev,
-				   flow_table_properties_nic_receive.ft_field_support.geneve_tlv_option_0_exist);
-
 	if (caps->flex_protocols & MLX5_FLEX_PARSER_ICMP_V4_ENABLED) {
 		caps->flex_parser_id_icmp_dw0 = MLX5_CAP_GEN(mdev, flex_parser_id_icmp_dw0);
 		caps->flex_parser_id_icmp_dw1 = MLX5_CAP_GEN(mdev, flex_parser_id_icmp_dw1);
@@ -159,7 +152,7 @@ int mlx5dr_cmd_query_device(struct mlx5_core_dev *mdev,
 		caps->flex_parser_id_mpls_over_gre =
 			MLX5_CAP_GEN(mdev, flex_parser_id_outer_first_mpls_over_gre);
 
-	if (caps->flex_protocols & MLX5_FLEX_PARSER_MPLS_OVER_UDP_ENABLED)
+	if (caps->flex_protocols & mlx5_FLEX_PARSER_MPLS_OVER_UDP_ENABLED)
 		caps->flex_parser_id_mpls_over_udp =
 			MLX5_CAP_GEN(mdev, flex_parser_id_outer_first_mpls_over_udp_label);
 
@@ -606,8 +599,7 @@ static int mlx5dr_cmd_set_extended_dest(struct mlx5_core_dev *dev,
 	for (i = 0; i < fte->dests_size; i++) {
 		if (fte->dest_arr[i].type == MLX5_FLOW_DESTINATION_TYPE_COUNTER)
 			continue;
-		if ((fte->dest_arr[i].type == MLX5_FLOW_DESTINATION_TYPE_VPORT ||
-		     fte->dest_arr[i].type == MLX5_FLOW_DESTINATION_TYPE_UPLINK) &&
+		if (fte->dest_arr[i].type == MLX5_FLOW_DESTINATION_TYPE_VPORT &&
 		    fte->dest_arr[i].vport.flags & MLX5_FLOW_DEST_VPORT_REFORMAT_ID)
 			num_encap++;
 		num_fwd_destinations++;
@@ -732,19 +724,12 @@ int mlx5dr_cmd_set_fte(struct mlx5_core_dev *dev,
 			case MLX5_FLOW_DESTINATION_TYPE_FLOW_TABLE:
 				id = fte->dest_arr[i].ft_id;
 				break;
-			case MLX5_FLOW_DESTINATION_TYPE_UPLINK:
 			case MLX5_FLOW_DESTINATION_TYPE_VPORT:
-				if (type == MLX5_FLOW_DESTINATION_TYPE_VPORT) {
-					id = fte->dest_arr[i].vport.num;
-					MLX5_SET(dest_format_struct, in_dests,
-						 destination_eswitch_owner_vhca_id_valid,
-						 !!(fte->dest_arr[i].vport.flags &
-						    MLX5_FLOW_DEST_VPORT_VHCA_ID));
-				} else {
-					id = 0;
-					MLX5_SET(dest_format_struct, in_dests,
-						 destination_eswitch_owner_vhca_id_valid, 1);
-				}
+				id = fte->dest_arr[i].vport.num;
+				MLX5_SET(dest_format_struct, in_dests,
+					 destination_eswitch_owner_vhca_id_valid,
+					 !!(fte->dest_arr[i].vport.flags &
+					    MLX5_FLOW_DEST_VPORT_VHCA_ID));
 				MLX5_SET(dest_format_struct, in_dests,
 					 destination_eswitch_owner_vhca_id,
 					 fte->dest_arr[i].vport.vhca_id);

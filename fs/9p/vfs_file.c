@@ -93,8 +93,7 @@ int v9fs_file_open(struct inode *inode, struct file *file)
 	}
 	mutex_unlock(&v9inode->v_mutex);
 	if (v9ses->cache == CACHE_LOOSE || v9ses->cache == CACHE_FSCACHE)
-		fscache_use_cookie(v9fs_inode_cookie(v9inode),
-				   file->f_mode & FMODE_WRITE);
+		v9fs_cache_inode_set_cookie(inode, file);
 	v9fs_open_fid_add(inode, fid);
 	return 0;
 out_error:

@@ -28,7 +28,6 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_mipi_dsi.h>
 
-#include "icl_dsi.h"
 #include "intel_atomic.h"
 #include "intel_backlight.h"
 #include "intel_combo_phy.h"
@@ -37,7 +36,6 @@
 #include "intel_ddi.h"
 #include "intel_de.h"
 #include "intel_dsi.h"
-#include "intel_dsi_vbt.h"
 #include "intel_panel.h"
 #include "intel_vdsc.h"
 #include "skl_scaler.h"
@@ -185,8 +183,6 @@ static int dsi_send_pkt_hdr(struct intel_dsi_host *host,
 
 	if (enable_lpdt)
 		tmp |= LP_DATA_TRANSFER;
-	else
-		tmp &= ~LP_DATA_TRANSFER;
 
 	tmp &= ~(PARAM_WC_MASK | VC_MASK | DT_MASK);
 	tmp |= ((packet->header[0] & VC_MASK) << VC_SHIFT);
@@ -1230,9 +1226,7 @@ static void gen11_dsi_pre_enable(struct intel_atomic_state *state,
 	/* step5: program and powerup panel */
 	gen11_dsi_powerup_panel(encoder);
 
-	intel_dsc_dsi_pps_write(encoder, pipe_config);
-
-	intel_dsc_enable(pipe_config);
+	intel_dsc_enable(encoder, pipe_config);
 
 	/* step6c: configure transcoder timings */
 	gen11_dsi_set_transcoder_timings(encoder, pipe_config);
@@ -1629,7 +1623,7 @@ static int gen11_dsi_dsc_compute_config(struct intel_encoder *encoder,
 	/* FIXME: initialize from VBT */
 	vdsc_cfg->rc_model_size = DSC_RC_MODEL_SIZE_CONST;
 
-	ret = intel_dsc_compute_params(crtc_state);
+	ret = intel_dsc_compute_params(encoder, crtc_state);
 	if (ret)
 		return ret;
 

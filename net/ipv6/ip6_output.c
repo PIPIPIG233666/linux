@@ -977,7 +977,7 @@ slow_path:
 
 fail_toobig:
 	if (skb->sk && dst_allfrag(skb_dst(skb)))
-		sk_gso_disable(skb->sk);
+		sk_nocaps_add(skb->sk, NETIF_F_GSO_MASK);
 
 	icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, mtu);
 	err = -EMSGSIZE;

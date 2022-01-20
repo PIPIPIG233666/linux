@@ -10,7 +10,6 @@
 #include <drm/drm_fourcc.h>
 
 #include "framebuffer.h"
-#include "gem.h"
 #include "gma_display.h"
 #include "power.h"
 #include "psb_drv.h"
@@ -609,7 +608,7 @@ static int oaktrail_pipe_set_base(struct drm_crtc *crtc,
 	if (!gma_power_begin(dev, true))
 		return 0;
 
-	start = to_psb_gem_object(fb->obj[0])->offset;
+	start = to_gtt_range(fb->obj[0])->offset;
 	offset = y * fb->pitches[0] + x * fb->format->cpp[0];
 
 	REG_WRITE(map->stride, fb->pitches[0]);

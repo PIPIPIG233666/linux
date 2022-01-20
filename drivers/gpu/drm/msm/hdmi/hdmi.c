@@ -8,8 +8,6 @@
 #include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 
-#include <drm/drm_bridge_connector.h>
-
 #include <sound/hdmi-codec.h>
 #include "hdmi.h"
 
@@ -43,7 +41,7 @@ static irqreturn_t msm_hdmi_irq(int irq, void *dev_id)
 	struct hdmi *hdmi = dev_id;
 
 	/* Process HPD: */
-	msm_hdmi_hpd_irq(hdmi->bridge);
+	msm_hdmi_connector_irq(hdmi->connector);
 
 	/* Process DDC: */
 	msm_hdmi_i2c_irq(hdmi->i2c);
@@ -283,15 +281,13 @@ int msm_hdmi_modeset_init(struct hdmi *hdmi,
 		goto fail;
 	}
 
-	hdmi->connector = drm_bridge_connector_init(hdmi->dev, encoder);
+	hdmi->connector = msm_hdmi_connector_init(hdmi);
 	if (IS_ERR(hdmi->connector)) {
 		ret = PTR_ERR(hdmi->connector);
 		DRM_DEV_ERROR(dev->dev, "failed to create HDMI connector: %d\n", ret);
 		hdmi->connector = NULL;
 		goto fail;
 	}
-
-	drm_connector_attach_encoder(hdmi->connector, hdmi->encoder);
 
 	hdmi->irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
 	if (hdmi->irq < 0) {
@@ -309,9 +305,7 @@ int msm_hdmi_modeset_init(struct hdmi *hdmi,
 		goto fail;
 	}
 
-	drm_bridge_connector_enable_hpd(hdmi->connector);
-
-	ret = msm_hdmi_hpd_enable(hdmi->bridge);
+	ret = msm_hdmi_hpd_enable(hdmi->connector);
 	if (ret < 0) {
 		DRM_DEV_ERROR(&hdmi->pdev->dev, "failed to enable HPD: %d\n", ret);
 		goto fail;
@@ -520,7 +514,8 @@ static int msm_hdmi_register_audio_driver(struct hdmi *hdmi, struct device *dev)
 
 static int msm_hdmi_bind(struct device *dev, struct device *master, void *data)
 {
-	struct msm_drm_private *priv = dev_get_drvdata(master);
+	struct drm_device *drm = dev_get_drvdata(master);
+	struct msm_drm_private *priv = drm->dev_private;
 	struct hdmi_platform_config *hdmi_cfg;
 	struct hdmi *hdmi;
 	struct device_node *of_node = dev->of_node;
@@ -591,8 +586,8 @@ static int msm_hdmi_bind(struct device *dev, struct device *master, void *data)
 static void msm_hdmi_unbind(struct device *dev, struct device *master,
 		void *data)
 {
-	struct msm_drm_private *priv = dev_get_drvdata(master);
-
+	struct drm_device *drm = dev_get_drvdata(master);
+	struct msm_drm_private *priv = drm->dev_private;
 	if (priv->hdmi) {
 		if (priv->hdmi->audio_pdev)
 			platform_device_unregister(priv->hdmi->audio_pdev);

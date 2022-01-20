@@ -27,6 +27,7 @@
 
 #include <linux/types.h>
 
+#include "intel_display.h"
 #include "intel_wakeref.h"
 
 /*FIXME: Move this to a more appropriate place. */
@@ -36,7 +37,6 @@
 	(void) (&__a == &__b);			\
 	__a > __b ? (__a - __b) : (__b - __a); })
 
-enum tc_port;
 struct drm_device;
 struct drm_i915_private;
 struct intel_atomic_state;

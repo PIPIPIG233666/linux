@@ -270,8 +270,9 @@ ice_get_eeprom(struct net_device *netdev, struct ethtool_eeprom *eeprom,
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_pf *pf = vsi->back;
 	struct ice_hw *hw = &pf->hw;
+	enum ice_status status;
 	struct device *dev;
-	int ret;
+	int ret = 0;
 	u8 *buf;
 
 	dev = ice_pf_to_dev(pf);
@@ -284,18 +285,22 @@ ice_get_eeprom(struct net_device *netdev, struct ethtool_eeprom *eeprom,
 	if (!buf)
 		return -ENOMEM;
 
-	ret = ice_acquire_nvm(hw, ICE_RES_READ);
-	if (ret) {
-		dev_err(dev, "ice_acquire_nvm failed, err %d aq_err %s\n",
-			ret, ice_aq_str(hw->adminq.sq_last_status));
+	status = ice_acquire_nvm(hw, ICE_RES_READ);
+	if (status) {
+		dev_err(dev, "ice_acquire_nvm failed, err %s aq_err %s\n",
+			ice_stat_str(status),
+			ice_aq_str(hw->adminq.sq_last_status));
+		ret = -EIO;
 		goto out;
 	}
 
-	ret = ice_read_flat_nvm(hw, eeprom->offset, &eeprom->len, buf,
-				false);
-	if (ret) {
-		dev_err(dev, "ice_read_flat_nvm failed, err %d aq_err %s\n",
-			ret, ice_aq_str(hw->adminq.sq_last_status));
+	status = ice_read_flat_nvm(hw, eeprom->offset, &eeprom->len, buf,
+				   false);
+	if (status) {
+		dev_err(dev, "ice_read_flat_nvm failed, err %s aq_err %s\n",
+			ice_stat_str(status),
+			ice_aq_str(hw->adminq.sq_last_status));
+		ret = -EIO;
 		goto release;
 	}
 
@@ -337,14 +342,14 @@ static bool ice_active_vfs(struct ice_pf *pf)
 static u64 ice_link_test(struct net_device *netdev)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
+	enum ice_status status;
 	bool link_up = false;
-	int status;
 
 	netdev_info(netdev, "link test\n");
 	status = ice_get_link_status(np->vsi->port_info, &link_up);
 	if (status) {
-		netdev_err(netdev, "link query error, status = %d\n",
-			   status);
+		netdev_err(netdev, "link query error, status = %s\n",
+			   ice_stat_str(status));
 		return 1;
 	}
 
@@ -1047,7 +1052,8 @@ ice_get_fecparam(struct net_device *netdev, struct ethtool_fecparam *fecparam)
 	struct ice_link_status *link_info;
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_port_info *pi;
-	int err;
+	enum ice_status status;
+	int err = 0;
 
 	pi = vsi->port_info;
 
@@ -1073,10 +1079,12 @@ ice_get_fecparam(struct net_device *netdev, struct ethtool_fecparam *fecparam)
 	if (!caps)
 		return -ENOMEM;
 
-	err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_TOPO_CAP_MEDIA,
-				  caps, NULL);
-	if (err)
+	status = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_TOPO_CAP_MEDIA,
+				     caps, NULL);
+	if (status) {
+		err = -EAGAIN;
 		goto done;
+	}
 
 	/* Set supported/configured FEC modes based on PHY capability */
 	if (caps->caps & ICE_AQC_PHY_EN_AUTO_FEC)
@@ -1195,7 +1203,7 @@ static int ice_set_priv_flags(struct net_device *netdev, u32 flags)
 
 	if (test_bit(ICE_FLAG_FW_LLDP_AGENT, change_flags)) {
 		if (!test_bit(ICE_FLAG_FW_LLDP_AGENT, pf->flags)) {
-			int status;
+			enum ice_status status;
 
 			/* Disable FW LLDP engine */
 			status = ice_cfg_lldp_mib_change(&pf->hw, false);
@@ -1224,8 +1232,8 @@ static int ice_set_priv_flags(struct net_device *netdev, u32 flags)
 			pf->dcbx_cap &= ~DCB_CAP_DCBX_LLD_MANAGED;
 			pf->dcbx_cap |= DCB_CAP_DCBX_HOST;
 		} else {
+			enum ice_status status;
 			bool dcbx_agent_status;
-			int status;
 
 			if (ice_get_pfc_mode(pf) == ICE_QOS_MODE_DSCP) {
 				clear_bit(ICE_FLAG_FW_LLDP_AGENT, pf->flags);
@@ -1280,10 +1288,8 @@ static int ice_set_priv_flags(struct net_device *netdev, u32 flags)
 	}
 	if (test_bit(ICE_FLAG_LEGACY_RX, change_flags)) {
 		/* down and up VSI so that changes of Rx cfg are reflected. */
-		if (!test_and_set_bit(ICE_VSI_DOWN, vsi->state)) {
-			ice_down(vsi);
-			ice_up(vsi);
-		}
+		ice_down(vsi);
+		ice_up(vsi);
 	}
 	/* don't allow modification of this flag when a single VF is in
 	 * promiscuous mode because it's not supported
@@ -1932,7 +1938,8 @@ ice_get_link_ksettings(struct net_device *netdev,
 	struct ice_aqc_get_phy_caps_data *caps;
 	struct ice_link_status *hw_link_info;
 	struct ice_vsi *vsi = np->vsi;
-	int err;
+	enum ice_status status;
+	int err = 0;
 
 	ethtool_link_ksettings_zero_link_mode(ks, supported);
 	ethtool_link_ksettings_zero_link_mode(ks, advertising);
@@ -1983,10 +1990,12 @@ ice_get_link_ksettings(struct net_device *netdev,
 	if (!caps)
 		return -ENOMEM;
 
-	err = ice_aq_get_phy_caps(vsi->port_info, false,
-				  ICE_AQC_REPORT_ACTIVE_CFG, caps, NULL);
-	if (err)
+	status = ice_aq_get_phy_caps(vsi->port_info, false,
+				     ICE_AQC_REPORT_ACTIVE_CFG, caps, NULL);
+	if (status) {
+		err = -EIO;
 		goto done;
+	}
 
 	/* Set the advertised flow control based on the PHY capability */
 	if ((caps->caps & ICE_AQC_PHY_EN_TX_LINK_PAUSE) &&
@@ -2018,10 +2027,12 @@ ice_get_link_ksettings(struct net_device *netdev,
 	    caps->link_fec_options & ICE_AQC_PHY_FEC_25G_RS_544_REQ)
 		ethtool_link_ksettings_add_link_mode(ks, advertising, FEC_RS);
 
-	err = ice_aq_get_phy_caps(vsi->port_info, false,
-				  ICE_AQC_REPORT_TOPO_CAP_MEDIA, caps, NULL);
-	if (err)
+	status = ice_aq_get_phy_caps(vsi->port_info, false,
+				     ICE_AQC_REPORT_TOPO_CAP_MEDIA, caps, NULL);
+	if (status) {
+		err = -EIO;
 		goto done;
+	}
 
 	/* Set supported FEC modes based on PHY capability */
 	ethtool_link_ksettings_add_link_mode(ks, supported, FEC_NONE);
@@ -2199,10 +2210,11 @@ ice_set_link_ksettings(struct net_device *netdev,
 	struct ice_pf *pf = np->vsi->back;
 	struct ice_port_info *pi;
 	u8 autoneg_changed = 0;
+	enum ice_status status;
 	u64 phy_type_high = 0;
 	u64 phy_type_low = 0;
+	int err = 0;
 	bool linkup;
-	int err;
 
 	pi = np->vsi->port_info;
 
@@ -2222,13 +2234,15 @@ ice_set_link_ksettings(struct net_device *netdev,
 
 	/* Get the PHY capabilities based on media */
 	if (ice_fw_supports_report_dflt_cfg(pi->hw))
-		err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_DFLT_CFG,
-					  phy_caps, NULL);
+		status = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_DFLT_CFG,
+					     phy_caps, NULL);
 	else
-		err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_TOPO_CAP_MEDIA,
-					  phy_caps, NULL);
-	if (err)
+		status = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_TOPO_CAP_MEDIA,
+					     phy_caps, NULL);
+	if (status) {
+		err = -EIO;
 		goto done;
+	}
 
 	/* save autoneg out of ksettings */
 	autoneg = copy_ks.base.autoneg;
@@ -2294,9 +2308,11 @@ ice_set_link_ksettings(struct net_device *netdev,
 
 	/* Call to get the current link speed */
 	pi->phy.get_link_info = true;
-	err = ice_get_link_status(pi, &linkup);
-	if (err)
+	status = ice_get_link_status(pi, &linkup);
+	if (status) {
+		err = -EIO;
 		goto done;
+	}
 
 	curr_link_speed = pi->phy.link_info.link_speed;
 	adv_link_speed = ice_ksettings_find_adv_link_speed(ks);
@@ -2365,9 +2381,10 @@ ice_set_link_ksettings(struct net_device *netdev,
 	}
 
 	/* make the aq call */
-	err = ice_aq_set_phy_cfg(&pf->hw, pi, &config, NULL);
-	if (err) {
+	status = ice_aq_set_phy_cfg(&pf->hw, pi, &config, NULL);
+	if (status) {
 		netdev_info(netdev, "Set phy config failed,\n");
+		err = -EIO;
 		goto done;
 	}
 
@@ -2505,9 +2522,9 @@ static int
 ice_set_rss_hash_opt(struct ice_vsi *vsi, struct ethtool_rxnfc *nfc)
 {
 	struct ice_pf *pf = vsi->back;
+	enum ice_status status;
 	struct device *dev;
 	u64 hashed_flds;
-	int status;
 	u32 hdrs;
 
 	dev = ice_pf_to_dev(pf);
@@ -2533,9 +2550,9 @@ ice_set_rss_hash_opt(struct ice_vsi *vsi, struct ethtool_rxnfc *nfc)
 
 	status = ice_add_rss_cfg(&pf->hw, vsi->idx, hashed_flds, hdrs);
 	if (status) {
-		dev_dbg(dev, "ice_add_rss_cfg failed, vsi num = %d, error = %d\n",
-			vsi->vsi_num, status);
-		return status;
+		dev_dbg(dev, "ice_add_rss_cfg failed, vsi num = %d, error = %s\n",
+			vsi->vsi_num, ice_stat_str(status));
+		return -EINVAL;
 	}
 
 	return 0;
@@ -2669,9 +2686,7 @@ ice_get_rxnfc(struct net_device *netdev, struct ethtool_rxnfc *cmd,
 }
 
 static void
-ice_get_ringparam(struct net_device *netdev, struct ethtool_ringparam *ring,
-		  struct kernel_ethtool_ringparam *kernel_ring,
-		  struct netlink_ext_ack *extack)
+ice_get_ringparam(struct net_device *netdev, struct ethtool_ringparam *ring)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_vsi *vsi = np->vsi;
@@ -2689,9 +2704,7 @@ ice_get_ringparam(struct net_device *netdev, struct ethtool_ringparam *ring,
 }
 
 static int
-ice_set_ringparam(struct net_device *netdev, struct ethtool_ringparam *ring,
-		  struct kernel_ethtool_ringparam *kernel_ring,
-		  struct netlink_ext_ack *extack)
+ice_set_ringparam(struct net_device *netdev, struct ethtool_ringparam *ring)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_tx_ring *xdp_rings = NULL;
@@ -2936,7 +2949,7 @@ ice_get_pauseparam(struct net_device *netdev, struct ethtool_pauseparam *pause)
 	struct ice_port_info *pi = np->vsi->port_info;
 	struct ice_aqc_get_phy_caps_data *pcaps;
 	struct ice_dcbx_cfg *dcbx_cfg;
-	int status;
+	enum ice_status status;
 
 	/* Initialize pause params */
 	pause->rx_pause = 0;
@@ -2986,10 +2999,11 @@ ice_set_pauseparam(struct net_device *netdev, struct ethtool_pauseparam *pause)
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_hw *hw = &pf->hw;
 	struct ice_port_info *pi;
+	enum ice_status status;
 	u8 aq_failures;
 	bool link_up;
+	int err = 0;
 	u32 is_an;
-	int err;
 
 	pi = vsi->port_info;
 	hw_link_info = &pi->phy.link_info;
@@ -3015,11 +3029,11 @@ ice_set_pauseparam(struct net_device *netdev, struct ethtool_pauseparam *pause)
 		return -ENOMEM;
 
 	/* Get current PHY config */
-	err = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_ACTIVE_CFG, pcaps,
-				  NULL);
-	if (err) {
+	status = ice_aq_get_phy_caps(pi, false, ICE_AQC_REPORT_ACTIVE_CFG, pcaps,
+				     NULL);
+	if (status) {
 		kfree(pcaps);
-		return err;
+		return -EIO;
 	}
 
 	is_an = ice_is_phy_caps_an_enabled(pcaps) ? AUTONEG_ENABLE :
@@ -3055,19 +3069,22 @@ ice_set_pauseparam(struct net_device *netdev, struct ethtool_pauseparam *pause)
 		return -EINVAL;
 
 	/* Set the FC mode and only restart AN if link is up */
-	err = ice_set_fc(pi, &aq_failures, link_up);
+	status = ice_set_fc(pi, &aq_failures, link_up);
 
 	if (aq_failures & ICE_SET_FC_AQ_FAIL_GET) {
-		netdev_info(netdev, "Set fc failed on the get_phy_capabilities call with err %d aq_err %s\n",
-			    err, ice_aq_str(hw->adminq.sq_last_status));
+		netdev_info(netdev, "Set fc failed on the get_phy_capabilities call with err %s aq_err %s\n",
+			    ice_stat_str(status),
+			    ice_aq_str(hw->adminq.sq_last_status));
 		err = -EAGAIN;
 	} else if (aq_failures & ICE_SET_FC_AQ_FAIL_SET) {
-		netdev_info(netdev, "Set fc failed on the set_phy_config call with err %d aq_err %s\n",
-			    err, ice_aq_str(hw->adminq.sq_last_status));
+		netdev_info(netdev, "Set fc failed on the set_phy_config call with err %s aq_err %s\n",
+			    ice_stat_str(status),
+			    ice_aq_str(hw->adminq.sq_last_status));
 		err = -EAGAIN;
 	} else if (aq_failures & ICE_SET_FC_AQ_FAIL_UPDATE) {
-		netdev_info(netdev, "Set fc failed on the get_link_info call with err %d aq_err %s\n",
-			    err, ice_aq_str(hw->adminq.sq_last_status));
+		netdev_info(netdev, "Set fc failed on the get_link_info call with err %s aq_err %s\n",
+			    ice_stat_str(status),
+			    ice_aq_str(hw->adminq.sq_last_status));
 		err = -EAGAIN;
 	}
 
@@ -3907,16 +3924,16 @@ ice_get_module_info(struct net_device *netdev,
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_pf *pf = vsi->back;
 	struct ice_hw *hw = &pf->hw;
+	enum ice_status status;
 	u8 sff8472_comp = 0;
 	u8 sff8472_swap = 0;
 	u8 sff8636_rev = 0;
 	u8 value = 0;
-	int status;
 
 	status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR, 0x00, 0x00,
 				   0, &value, 1, 0, NULL);
 	if (status)
-		return status;
+		return -EIO;
 
 	switch (value) {
 	case ICE_MODULE_TYPE_SFP:
@@ -3924,12 +3941,12 @@ ice_get_module_info(struct net_device *netdev,
 					   ICE_MODULE_SFF_8472_COMP, 0x00, 0,
 					   &sff8472_comp, 1, 0, NULL);
 		if (status)
-			return status;
+			return -EIO;
 		status = ice_aq_sff_eeprom(hw, 0, ICE_I2C_EEPROM_DEV_ADDR,
 					   ICE_MODULE_SFF_8472_SWAP, 0x00, 0,
 					   &sff8472_swap, 1, 0, NULL);
 		if (status)
-			return status;
+			return -EIO;
 
 		if (sff8472_swap & ICE_MODULE_SFF_ADDR_MODE) {
 			modinfo->type = ETH_MODULE_SFF_8079;
@@ -3949,7 +3966,7 @@ ice_get_module_info(struct net_device *netdev,
 					   ICE_MODULE_REVISION_ADDR, 0x00, 0,
 					   &sff8636_rev, 1, 0, NULL);
 		if (status)
-			return status;
+			return -EIO;
 		/* Check revision compliance */
 		if (sff8636_rev > 0x02) {
 			/* Module is SFF-8636 compliant */
@@ -3984,11 +4001,11 @@ ice_get_module_eeprom(struct net_device *netdev,
 	struct ice_vsi *vsi = np->vsi;
 	struct ice_pf *pf = vsi->back;
 	struct ice_hw *hw = &pf->hw;
+	enum ice_status status;
 	bool is_sfp = false;
 	unsigned int i, j;
 	u16 offset = 0;
 	u8 page = 0;
-	int status;
 
 	if (!ee || !ee->len || !data)
 		return -EINVAL;
@@ -3996,7 +4013,7 @@ ice_get_module_eeprom(struct net_device *netdev,
 	status = ice_aq_sff_eeprom(hw, 0, addr, offset, page, 0, value, 1, 0,
 				   NULL);
 	if (status)
-		return status;
+		return -EIO;
 
 	if (value[0] == ICE_MODULE_TYPE_SFP)
 		is_sfp = true;

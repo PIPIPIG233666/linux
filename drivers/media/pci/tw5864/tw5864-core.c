@@ -333,10 +333,11 @@ static void tw5864_finidev(struct pci_dev *pci_dev)
 
 	/* release resources */
 	iounmap(dev->mmio);
-	pci_release_regions(pci_dev);
-	pci_disable_device(pci_dev);
+	release_mem_region(pci_resource_start(pci_dev, 0),
+			   pci_resource_len(pci_dev, 0));
 
 	v4l2_device_unregister(&dev->v4l2_dev);
+	devm_kfree(&pci_dev->dev, dev);
 }
 
 static struct pci_driver tw5864_pci_driver = {

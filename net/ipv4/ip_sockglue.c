@@ -576,7 +576,7 @@ out:
 	return err;
 }
 
-void __ip_sock_set_tos(struct sock *sk, int val)
+static void __ip_sock_set_tos(struct sock *sk, int val)
 {
 	if (sk->sk_type == SOCK_STREAM) {
 		val &= ~INET_ECN_MASK;

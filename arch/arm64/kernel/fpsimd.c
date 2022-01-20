@@ -15,7 +15,6 @@
 #include <linux/compiler.h>
 #include <linux/cpu.h>
 #include <linux/cpu_pm.h>
-#include <linux/ctype.h>
 #include <linux/kernel.h>
 #include <linux/linkage.h>
 #include <linux/irqflags.h>
@@ -407,13 +406,12 @@ static unsigned int find_supported_vector_length(enum vec_type type,
 
 #if defined(CONFIG_ARM64_SVE) && defined(CONFIG_SYSCTL)
 
-static int vec_proc_do_default_vl(struct ctl_table *table, int write,
+static int sve_proc_do_default_vl(struct ctl_table *table, int write,
 				  void *buffer, size_t *lenp, loff_t *ppos)
 {
-	struct vl_info *info = table->extra1;
-	enum vec_type type = info->type;
+	struct vl_info *info = &vl_info[ARM64_VEC_SVE];
 	int ret;
-	int vl = get_default_vl(type);
+	int vl = get_sve_default_vl();
 	struct ctl_table tmp_table = {
 		.data = &vl,
 		.maxlen = sizeof(vl),
@@ -430,7 +428,7 @@ static int vec_proc_do_default_vl(struct ctl_table *table, int write,
 	if (!sve_vl_valid(vl))
 		return -EINVAL;
 
-	set_default_vl(type, find_supported_vector_length(type, vl));
+	set_sve_default_vl(find_supported_vector_length(ARM64_VEC_SVE, vl));
 	return 0;
 }
 
@@ -438,8 +436,7 @@ static struct ctl_table sve_default_vl_table[] = {
 	{
 		.procname	= "sve_default_vector_length",
 		.mode		= 0644,
-		.proc_handler	= vec_proc_do_default_vl,
-		.extra1		= &vl_info[ARM64_VEC_SVE],
+		.proc_handler	= sve_proc_do_default_vl,
 	},
 	{ }
 };
@@ -632,7 +629,7 @@ void sve_sync_from_fpsimd_zeropad(struct task_struct *task)
 	__fpsimd_to_sve(sst, fst, vq);
 }
 
-int vec_set_vector_length(struct task_struct *task, enum vec_type type,
+int sve_set_vector_length(struct task_struct *task,
 			  unsigned long vl, unsigned long flags)
 {
 	if (flags & ~(unsigned long)(PR_SVE_VL_INHERIT |
@@ -643,35 +640,33 @@ int vec_set_vector_length(struct task_struct *task, enum vec_type type,
 		return -EINVAL;
 
 	/*
-	 * Clamp to the maximum vector length that VL-agnostic code
-	 * can work with.  A flag may be assigned in the future to
-	 * allow setting of larger vector lengths without confusing
-	 * older software.
+	 * Clamp to the maximum vector length that VL-agnostic SVE code can
+	 * work with.  A flag may be assigned in the future to allow setting
+	 * of larger vector lengths without confusing older software.
 	 */
-	if (vl > VL_ARCH_MAX)
-		vl = VL_ARCH_MAX;
+	if (vl > SVE_VL_ARCH_MAX)
+		vl = SVE_VL_ARCH_MAX;
 
-	vl = find_supported_vector_length(type, vl);
+	vl = find_supported_vector_length(ARM64_VEC_SVE, vl);
 
 	if (flags & (PR_SVE_VL_INHERIT |
 		     PR_SVE_SET_VL_ONEXEC))
-		task_set_vl_onexec(task, type, vl);
+		task_set_sve_vl_onexec(task, vl);
 	else
 		/* Reset VL to system default on next exec: */
-		task_set_vl_onexec(task, type, 0);
+		task_set_sve_vl_onexec(task, 0);
 
 	/* Only actually set the VL if not deferred: */
 	if (flags & PR_SVE_SET_VL_ONEXEC)
 		goto out;
 
-	if (vl == task_get_vl(task, type))
+	if (vl == task_get_sve_vl(task))
 		goto out;
 
 	/*
 	 * To ensure the FPSIMD bits of the SVE vector registers are preserved,
 	 * write any live register state back to task_struct, and convert to a
-	 * regular FPSIMD thread.  Since the vector length can only be changed
-	 * with a syscall we can't be in streaming mode while reconfiguring.
+	 * non-SVE thread.
 	 */
 	if (task == current) {
 		get_cpu_fpsimd_context();
@@ -692,10 +687,10 @@ int vec_set_vector_length(struct task_struct *task, enum vec_type type,
 	 */
 	sve_free(task);
 
-	task_set_vl(task, type, vl);
+	task_set_sve_vl(task, vl);
 
 out:
-	update_tsk_thread_flag(task, vec_vl_inherit_flag(type),
+	update_tsk_thread_flag(task, TIF_SVE_VL_INHERIT,
 			       flags & PR_SVE_VL_INHERIT);
 
 	return 0;
@@ -703,21 +698,20 @@ out:
 
 /*
  * Encode the current vector length and flags for return.
- * This is only required for prctl(): ptrace has separate fields.
- * SVE and SME use the same bits for _ONEXEC and _INHERIT.
+ * This is only required for prctl(): ptrace has separate fields
  *
- * flags are as for vec_set_vector_length().
+ * flags are as for sve_set_vector_length().
  */
-static int vec_prctl_status(enum vec_type type, unsigned long flags)
+static int sve_prctl_status(unsigned long flags)
 {
 	int ret;
 
 	if (flags & PR_SVE_SET_VL_ONEXEC)
-		ret = task_get_vl_onexec(current, type);
+		ret = task_get_sve_vl_onexec(current);
 	else
-		ret = task_get_vl(current, type);
+		ret = task_get_sve_vl(current);
 
-	if (test_thread_flag(vec_vl_inherit_flag(type)))
+	if (test_thread_flag(TIF_SVE_VL_INHERIT))
 		ret |= PR_SVE_VL_INHERIT;
 
 	return ret;
@@ -735,11 +729,11 @@ int sve_set_current_vl(unsigned long arg)
 	if (!system_supports_sve() || is_compat_task())
 		return -EINVAL;
 
-	ret = vec_set_vector_length(current, ARM64_VEC_SVE, vl, flags);
+	ret = sve_set_vector_length(current, vl, flags);
 	if (ret)
 		return ret;
 
-	return vec_prctl_status(ARM64_VEC_SVE, flags);
+	return sve_prctl_status(flags);
 }
 
 /* PR_SVE_GET_VL */
@@ -748,7 +742,7 @@ int sve_get_current_vl(void)
 	if (!system_supports_sve() || is_compat_task())
 		return -EINVAL;
 
-	return vec_prctl_status(ARM64_VEC_SVE, 0);
+	return sve_prctl_status(0);
 }
 
 static void vec_probe_vqs(struct vl_info *info,
@@ -1113,7 +1107,7 @@ static void fpsimd_flush_thread_vl(enum vec_type type)
 		vl = get_default_vl(type);
 
 	if (WARN_ON(!sve_vl_valid(vl)))
-		vl = vl_info[type].min_vl;
+		vl = SVE_VL_MIN;
 
 	supported_vl = find_supported_vector_length(type, vl);
 	if (WARN_ON(supported_vl != vl))
@@ -1219,8 +1213,7 @@ void fpsimd_bind_state_to_cpu(struct user_fpsimd_state *st, void *sve_state,
 /*
  * Load the userland FPSIMD state of 'current' from memory, but only if the
  * FPSIMD state already held in the registers is /not/ the most recent FPSIMD
- * state of 'current'.  This is called when we are preparing to return to
- * userspace to ensure that userspace sees a good register state.
+ * state of 'current'
  */
 void fpsimd_restore_current_state(void)
 {
@@ -1251,9 +1244,7 @@ void fpsimd_restore_current_state(void)
 /*
  * Load an updated userland FPSIMD state for 'current' from memory and set the
  * flag that indicates that the FPSIMD register contents are the most recent
- * FPSIMD state of 'current'. This is used by the signal code to restore the
- * register state when returning from a signal handler in FPSIMD only cases,
- * any SVE context will be discarded.
+ * FPSIMD state of 'current'
  */
 void fpsimd_update_current_state(struct user_fpsimd_state const *state)
 {

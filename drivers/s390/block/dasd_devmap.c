@@ -1824,11 +1824,10 @@ static struct attribute *paths_info_attrs[] = {
 	&path_fcs_attribute.attr,
 	NULL,
 };
-ATTRIBUTE_GROUPS(paths_info);
 
 static struct kobj_type path_attr_type = {
 	.release	= dasd_path_release,
-	.default_groups	= paths_info_groups,
+	.default_attrs	= paths_info_attrs,
 	.sysfs_ops	= &kobj_sysfs_ops,
 };
 

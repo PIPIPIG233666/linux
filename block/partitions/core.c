@@ -98,12 +98,13 @@ static void bdev_set_nr_sectors(struct block_device *bdev, sector_t sectors)
 static struct parsed_partitions *allocate_partitions(struct gendisk *hd)
 {
 	struct parsed_partitions *state;
-	int nr = DISK_MAX_PARTS;
+	int nr;
 
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return NULL;
 
+	nr = disk_max_parts(hd);
 	state->parts = vzalloc(array_size(nr, sizeof(state->parts[0])));
 	if (!state->parts) {
 		kfree(state);
@@ -325,7 +326,7 @@ static struct block_device *add_partition(struct gendisk *disk, int partno,
 
 	lockdep_assert_held(&disk->open_mutex);
 
-	if (partno >= DISK_MAX_PARTS)
+	if (partno >= disk_max_parts(disk))
 		return ERR_PTR(-EINVAL);
 
 	/*
@@ -526,15 +527,18 @@ out_unlock:
 
 static bool disk_unlock_native_capacity(struct gendisk *disk)
 {
-	if (!disk->fops->unlock_native_capacity ||
-	    test_and_set_bit(GD_NATIVE_CAPACITY, &disk->state)) {
+	const struct block_device_operations *bdops = disk->fops;
+
+	if (bdops->unlock_native_capacity &&
+	    !(disk->flags & GENHD_FL_NATIVE_CAPACITY)) {
+		printk(KERN_CONT "enabling native capacity\n");
+		bdops->unlock_native_capacity(disk);
+		disk->flags |= GENHD_FL_NATIVE_CAPACITY;
+		return true;
+	} else {
 		printk(KERN_CONT "truncated\n");
 		return false;
 	}
-
-	printk(KERN_CONT "enabling native capacity\n");
-	disk->fops->unlock_native_capacity(disk);
-	return true;
 }
 
 void blk_drop_partitions(struct gendisk *disk)
@@ -603,7 +607,7 @@ static int blk_add_partitions(struct gendisk *disk)
 	struct parsed_partitions *state;
 	int ret = -EAGAIN, p;
 
-	if (disk->flags & GENHD_FL_NO_PART)
+	if (!disk_part_scan_enabled(disk))
 		return 0;
 
 	state = check_partition(disk);
@@ -686,7 +690,7 @@ rescan:
 	 * userspace for this particular setup.
 	 */
 	if (invalidate) {
-		if (!(disk->flags & GENHD_FL_NO_PART) ||
+		if (disk_part_scan_enabled(disk) ||
 		    !(disk->flags & GENHD_FL_REMOVABLE))
 			set_capacity(disk, 0);
 	}

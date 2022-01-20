@@ -62,7 +62,6 @@ static const struct hantro_fmt rockchip_vpu1_postproc_fmts[] = {
 	{
 		.fourcc = V4L2_PIX_FMT_YUYV,
 		.codec_mode = HANTRO_MODE_NONE,
-		.postprocessed = true,
 	},
 };
 
@@ -344,7 +343,7 @@ static const struct hantro_codec_ops rk3066_vpu_codec_ops[] = {
 		.run = hantro_h1_jpeg_enc_run,
 		.reset = rockchip_vpu1_enc_reset,
 		.init = hantro_jpeg_enc_init,
-		.done = hantro_h1_jpeg_enc_done,
+		.done = hantro_jpeg_enc_done,
 		.exit = hantro_jpeg_enc_exit,
 	},
 	[HANTRO_MODE_H264_DEC] = {
@@ -372,7 +371,7 @@ static const struct hantro_codec_ops rk3288_vpu_codec_ops[] = {
 		.run = hantro_h1_jpeg_enc_run,
 		.reset = rockchip_vpu1_enc_reset,
 		.init = hantro_jpeg_enc_init,
-		.done = hantro_h1_jpeg_enc_done,
+		.done = hantro_jpeg_enc_done,
 		.exit = hantro_jpeg_enc_exit,
 	},
 	[HANTRO_MODE_H264_DEC] = {
@@ -400,7 +399,6 @@ static const struct hantro_codec_ops rk3399_vpu_codec_ops[] = {
 		.run = rockchip_vpu2_jpeg_enc_run,
 		.reset = rockchip_vpu2_enc_reset,
 		.init = hantro_jpeg_enc_init,
-		.done = rockchip_vpu2_jpeg_enc_done,
 		.exit = hantro_jpeg_enc_exit,
 	},
 	[HANTRO_MODE_H264_DEC] = {
@@ -462,7 +460,7 @@ const struct hantro_variant rk3036_vpu_variant = {
 	.num_dec_fmts = ARRAY_SIZE(rk3066_vpu_dec_fmts),
 	.postproc_fmts = rockchip_vpu1_postproc_fmts,
 	.num_postproc_fmts = ARRAY_SIZE(rockchip_vpu1_postproc_fmts),
-	.postproc_ops = &hantro_g1_postproc_ops,
+	.postproc_regs = &hantro_g1_postproc_regs,
 	.codec = HANTRO_MPEG2_DECODER | HANTRO_VP8_DECODER |
 		 HANTRO_H264_DECODER,
 	.codec_ops = rk3036_vpu_codec_ops,
@@ -487,7 +485,7 @@ const struct hantro_variant rk3066_vpu_variant = {
 	.num_dec_fmts = ARRAY_SIZE(rk3066_vpu_dec_fmts),
 	.postproc_fmts = rockchip_vpu1_postproc_fmts,
 	.num_postproc_fmts = ARRAY_SIZE(rockchip_vpu1_postproc_fmts),
-	.postproc_ops = &hantro_g1_postproc_ops,
+	.postproc_regs = &hantro_g1_postproc_regs,
 	.codec = HANTRO_JPEG_ENCODER | HANTRO_MPEG2_DECODER |
 		 HANTRO_VP8_DECODER | HANTRO_H264_DECODER,
 	.codec_ops = rk3066_vpu_codec_ops,
@@ -507,7 +505,7 @@ const struct hantro_variant rk3288_vpu_variant = {
 	.num_dec_fmts = ARRAY_SIZE(rk3288_vpu_dec_fmts),
 	.postproc_fmts = rockchip_vpu1_postproc_fmts,
 	.num_postproc_fmts = ARRAY_SIZE(rockchip_vpu1_postproc_fmts),
-	.postproc_ops = &hantro_g1_postproc_ops,
+	.postproc_regs = &hantro_g1_postproc_regs,
 	.codec = HANTRO_JPEG_ENCODER | HANTRO_MPEG2_DECODER |
 		 HANTRO_VP8_DECODER | HANTRO_H264_DECODER,
 	.codec_ops = rk3288_vpu_codec_ops,

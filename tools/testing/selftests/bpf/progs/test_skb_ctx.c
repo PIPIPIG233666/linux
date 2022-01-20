@@ -5,7 +5,7 @@
 
 char _license[] SEC("license") = "GPL";
 
-SEC("tc")
+SEC("skb_ctx")
 int process(struct __sk_buff *skb)
 {
 	#pragma clang loop unroll(full)

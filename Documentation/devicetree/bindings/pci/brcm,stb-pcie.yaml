@@ -76,7 +76,6 @@ properties:
       maxItems: 3
 
 required:
-  - compatible
   - reg
   - ranges
   - dma-ranges

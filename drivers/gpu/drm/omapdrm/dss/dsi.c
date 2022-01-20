@@ -4884,6 +4884,7 @@ static int dsi_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct dsi_data *dsi;
 	struct resource *dsi_mem;
+	struct resource *res;
 	unsigned int i;
 	int r;
 
@@ -4920,11 +4921,13 @@ static int dsi_probe(struct platform_device *pdev)
 	if (IS_ERR(dsi->proto_base))
 		return PTR_ERR(dsi->proto_base);
 
-	dsi->phy_base = devm_platform_ioremap_resource_byname(pdev, "phy");
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy");
+	dsi->phy_base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(dsi->phy_base))
 		return PTR_ERR(dsi->phy_base);
 
-	dsi->pll_base = devm_platform_ioremap_resource_byname(pdev, "pll");
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "pll");
+	dsi->pll_base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(dsi->pll_base))
 		return PTR_ERR(dsi->pll_base);
 
@@ -5058,7 +5061,7 @@ static int dsi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static __maybe_unused int dsi_runtime_suspend(struct device *dev)
+static int dsi_runtime_suspend(struct device *dev)
 {
 	struct dsi_data *dsi = dev_get_drvdata(dev);
 
@@ -5071,7 +5074,7 @@ static __maybe_unused int dsi_runtime_suspend(struct device *dev)
 	return 0;
 }
 
-static __maybe_unused int dsi_runtime_resume(struct device *dev)
+static int dsi_runtime_resume(struct device *dev)
 {
 	struct dsi_data *dsi = dev_get_drvdata(dev);
 
@@ -5083,7 +5086,8 @@ static __maybe_unused int dsi_runtime_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops dsi_pm_ops = {
-	SET_RUNTIME_PM_OPS(dsi_runtime_suspend, dsi_runtime_resume, NULL)
+	.runtime_suspend = dsi_runtime_suspend,
+	.runtime_resume = dsi_runtime_resume,
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 

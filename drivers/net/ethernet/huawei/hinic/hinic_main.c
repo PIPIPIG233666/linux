@@ -144,12 +144,13 @@ static int create_txqs(struct hinic_dev *nic_dev)
 {
 	int err, i, j, num_txqs = hinic_hwdev_num_qps(nic_dev->hwdev);
 	struct net_device *netdev = nic_dev->netdev;
+	size_t txq_size;
 
 	if (nic_dev->txqs)
 		return -EINVAL;
 
-	nic_dev->txqs = devm_kcalloc(&netdev->dev, num_txqs,
-				     sizeof(*nic_dev->txqs), GFP_KERNEL);
+	txq_size = num_txqs * sizeof(*nic_dev->txqs);
+	nic_dev->txqs = devm_kzalloc(&netdev->dev, txq_size, GFP_KERNEL);
 	if (!nic_dev->txqs)
 		return -ENOMEM;
 
@@ -240,12 +241,13 @@ static int create_rxqs(struct hinic_dev *nic_dev)
 {
 	int err, i, j, num_rxqs = hinic_hwdev_num_qps(nic_dev->hwdev);
 	struct net_device *netdev = nic_dev->netdev;
+	size_t rxq_size;
 
 	if (nic_dev->rxqs)
 		return -EINVAL;
 
-	nic_dev->rxqs = devm_kcalloc(&netdev->dev, num_rxqs,
-				     sizeof(*nic_dev->rxqs), GFP_KERNEL);
+	rxq_size = num_rxqs * sizeof(*nic_dev->rxqs);
+	nic_dev->rxqs = devm_kzalloc(&netdev->dev, rxq_size, GFP_KERNEL);
 	if (!nic_dev->rxqs)
 		return -ENOMEM;
 
@@ -1392,8 +1394,12 @@ static int hinic_probe(struct pci_dev *pdev,
 
 	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 	if (err) {
-		dev_err(&pdev->dev, "Failed to set DMA mask\n");
-		goto err_dma_mask;
+		dev_warn(&pdev->dev, "Couldn't set 64-bit DMA mask\n");
+		err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+		if (err) {
+			dev_err(&pdev->dev, "Failed to set DMA mask\n");
+			goto err_dma_mask;
+		}
 	}
 
 	err = nic_dev_init(pdev);

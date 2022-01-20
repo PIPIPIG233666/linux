@@ -945,9 +945,7 @@ static void ethoc_get_regs(struct net_device *dev, struct ethtool_regs *regs,
 }
 
 static void ethoc_get_ringparam(struct net_device *dev,
-				struct ethtool_ringparam *ring,
-				struct kernel_ethtool_ringparam *kernel_ring,
-				struct netlink_ext_ack *extack)
+				struct ethtool_ringparam *ring)
 {
 	struct ethoc *priv = netdev_priv(dev);
 
@@ -963,9 +961,7 @@ static void ethoc_get_ringparam(struct net_device *dev,
 }
 
 static int ethoc_set_ringparam(struct net_device *dev,
-			       struct ethtool_ringparam *ring,
-			       struct kernel_ethtool_ringparam *kernel_ring,
-			       struct netlink_ext_ack *extack)
+			       struct ethtool_ringparam *ring)
 {
 	struct ethoc *priv = netdev_priv(dev);
 
@@ -1078,11 +1074,14 @@ static int ethoc_probe(struct platform_device *pdev)
 
 
 	/* obtain device IRQ number */
-	ret = platform_get_irq(pdev, 0);
-	if (ret < 0)
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "cannot obtain IRQ\n");
+		ret = -ENXIO;
 		goto free;
+	}
 
-	netdev->irq = ret;
+	netdev->irq = res->start;
 
 	/* setup driver-private data */
 	priv = netdev_priv(netdev);

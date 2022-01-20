@@ -12,7 +12,6 @@
 #include <drm/drm_plane_helper.h>
 
 #include "framebuffer.h"
-#include "gem.h"
 #include "gma_display.h"
 #include "power.h"
 #include "psb_drv.h"
@@ -455,21 +454,23 @@ static void psb_intel_cursor_init(struct drm_device *dev,
 	struct drm_psb_private *dev_priv = to_drm_psb_private(dev);
 	u32 control[3] = { CURACNTR, CURBCNTR, CURCCNTR };
 	u32 base[3] = { CURABASE, CURBBASE, CURCBASE };
-	struct psb_gem_object *cursor_pobj;
+	struct gtt_range *cursor_gt;
 
 	if (dev_priv->ops->cursor_needs_phys) {
 		/* Allocate 4 pages of stolen mem for a hardware cursor. That
 		 * is enough for the 64 x 64 ARGB cursors we support.
 		 */
-		cursor_pobj = psb_gem_create(dev, 4 * PAGE_SIZE, "cursor", true, PAGE_SIZE);
-		if (IS_ERR(cursor_pobj)) {
-			gma_crtc->cursor_pobj = NULL;
+		cursor_gt = psb_gtt_alloc_range(dev, 4 * PAGE_SIZE, "cursor", 1,
+						PAGE_SIZE);
+		if (!cursor_gt) {
+			gma_crtc->cursor_gt = NULL;
 			goto out;
 		}
-		gma_crtc->cursor_pobj = cursor_pobj;
-		gma_crtc->cursor_addr = dev_priv->stolen_base + cursor_pobj->offset;
+		gma_crtc->cursor_gt = cursor_gt;
+		gma_crtc->cursor_addr = dev_priv->stolen_base +
+							cursor_gt->offset;
 	} else {
-		gma_crtc->cursor_pobj = NULL;
+		gma_crtc->cursor_gt = NULL;
 	}
 
 out:

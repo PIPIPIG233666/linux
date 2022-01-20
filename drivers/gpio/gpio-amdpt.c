@@ -14,7 +14,6 @@
 #include <linux/platform_device.h>
 
 #define PT_TOTAL_GPIO 8
-#define PT_TOTAL_GPIO_EX 24
 
 /* PCI-E MMIO register offsets */
 #define PT_DIRECTION_REG   0x00
@@ -104,8 +103,10 @@ static int pt_gpio_probe(struct platform_device *pdev)
 	pt_gpio->gc.owner            = THIS_MODULE;
 	pt_gpio->gc.request          = pt_gpio_request;
 	pt_gpio->gc.free             = pt_gpio_free;
-	pt_gpio->gc.ngpio            = (uintptr_t)device_get_match_data(dev);
-
+	pt_gpio->gc.ngpio            = PT_TOTAL_GPIO;
+#if defined(CONFIG_OF_GPIO)
+	pt_gpio->gc.of_node          = dev->of_node;
+#endif
 	ret = gpiochip_add_data(&pt_gpio->gc, pt_gpio);
 	if (ret) {
 		dev_err(dev, "Failed to register GPIO lib\n");
@@ -132,9 +133,8 @@ static int pt_gpio_remove(struct platform_device *pdev)
 }
 
 static const struct acpi_device_id pt_gpio_acpi_match[] = {
-	{ "AMDF030", PT_TOTAL_GPIO },
-	{ "AMDIF030", PT_TOTAL_GPIO },
-	{ "AMDIF031", PT_TOTAL_GPIO_EX },
+	{ "AMDF030", 0 },
+	{ "AMDIF030", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(acpi, pt_gpio_acpi_match);

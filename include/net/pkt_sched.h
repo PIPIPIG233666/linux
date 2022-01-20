@@ -197,9 +197,7 @@ struct tc_skb_cb {
 	struct qdisc_skb_cb qdisc_cb;
 
 	u16 mru;
-	u8 post_ct:1;
-	u8 post_ct_snat:1;
-	u8 post_ct_dnat:1;
+	bool post_ct;
 	u16 zone; /* Only valid if post_ct = true */
 };
 

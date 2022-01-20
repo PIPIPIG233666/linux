@@ -313,10 +313,7 @@ static inline void bcm2835_pinctrl_fsel_set(
 
 static int bcm2835_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 {
-	struct bcm2835_pinctrl *pc = gpiochip_get_data(chip);
-
-	bcm2835_pinctrl_fsel_set(pc, offset, BCM2835_FSEL_GPIO_IN);
-	return 0;
+	return pinctrl_gpio_direction_input(chip->base + offset);
 }
 
 static int bcm2835_gpio_get(struct gpio_chip *chip, unsigned offset)
@@ -351,11 +348,8 @@ static void bcm2835_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 static int bcm2835_gpio_direction_output(struct gpio_chip *chip,
 		unsigned offset, int value)
 {
-	struct bcm2835_pinctrl *pc = gpiochip_get_data(chip);
-
-	bcm2835_gpio_set_bit(pc, value ? GPSET0 : GPCLR0, offset);
-	bcm2835_pinctrl_fsel_set(pc, offset, BCM2835_FSEL_GPIO_OUT);
-	return 0;
+	bcm2835_gpio_set(chip, offset, value);
+	return pinctrl_gpio_direction_output(chip->base + offset);
 }
 
 static const struct gpio_chip bcm2835_gpio_chip = {
@@ -413,7 +407,7 @@ static void bcm2835_gpio_irq_handler(struct irq_desc *desc)
 	struct bcm2835_pinctrl *pc = gpiochip_get_data(chip);
 	struct irq_chip *host_chip = irq_desc_get_chip(desc);
 	int irq = irq_desc_get_irq(desc);
-	int group = 0;
+	int group;
 	int i;
 
 	for (i = 0; i < BCM2835_NUM_IRQS; i++) {
@@ -1228,6 +1222,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 
 	pc->gpio_chip = *pdata->gpio_chip;
 	pc->gpio_chip.parent = dev;
+	pc->gpio_chip.of_node = np;
 
 	for (i = 0; i < BCM2835_NUM_BANKS; i++) {
 		unsigned long events;

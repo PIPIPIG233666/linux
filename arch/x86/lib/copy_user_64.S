@@ -32,10 +32,14 @@
 	decl %ecx
 	jnz 100b
 102:
+	.section .fixup,"ax"
+103:	addl %ecx,%edx			/* ecx is zerorest also */
+	jmp .Lcopy_user_handle_tail
+	.previous
 
-	_ASM_EXTABLE_CPY(100b, .Lcopy_user_handle_align)
-	_ASM_EXTABLE_CPY(101b, .Lcopy_user_handle_align)
-.endm
+	_ASM_EXTABLE_CPY(100b, 103b)
+	_ASM_EXTABLE_CPY(101b, 103b)
+	.endm
 
 /*
  * copy_user_generic_unrolled - memory copy with exception handling.
@@ -101,8 +105,9 @@ SYM_FUNC_START(copy_user_generic_unrolled)
 	jnz 21b
 23:	xor %eax,%eax
 	ASM_CLAC
-	RET
+	ret
 
+	.section .fixup,"ax"
 30:	shll $6,%ecx
 	addl %ecx,%edx
 	jmp 60f
@@ -110,6 +115,7 @@ SYM_FUNC_START(copy_user_generic_unrolled)
 	jmp 60f
 50:	movl %ecx,%edx
 60:	jmp .Lcopy_user_handle_tail /* ecx is zerorest also */
+	.previous
 
 	_ASM_EXTABLE_CPY(1b, 30b)
 	_ASM_EXTABLE_CPY(2b, 30b)
@@ -160,16 +166,20 @@ SYM_FUNC_START(copy_user_generic_string)
 	movl %edx,%ecx
 	shrl $3,%ecx
 	andl $7,%edx
-1:	rep movsq
+1:	rep
+	movsq
 2:	movl %edx,%ecx
-3:	rep movsb
+3:	rep
+	movsb
 	xorl %eax,%eax
 	ASM_CLAC
-	RET
+	ret
 
+	.section .fixup,"ax"
 11:	leal (%rdx,%rcx,8),%ecx
 12:	movl %ecx,%edx		/* ecx is zerorest also */
 	jmp .Lcopy_user_handle_tail
+	.previous
 
 	_ASM_EXTABLE_CPY(1b, 11b)
 	_ASM_EXTABLE_CPY(3b, 12b)
@@ -190,16 +200,19 @@ EXPORT_SYMBOL(copy_user_generic_string)
  */
 SYM_FUNC_START(copy_user_enhanced_fast_string)
 	ASM_STAC
-	/* CPUs without FSRM should avoid rep movsb for short copies */
-	ALTERNATIVE "cmpl $64, %edx; jb .L_copy_short_string", "", X86_FEATURE_FSRM
+	cmpl $64,%edx
+	jb .L_copy_short_string	/* less then 64 bytes, avoid the costly 'rep' */
 	movl %edx,%ecx
-1:	rep movsb
+1:	rep
+	movsb
 	xorl %eax,%eax
 	ASM_CLAC
-	RET
+	ret
 
+	.section .fixup,"ax"
 12:	movl %ecx,%edx		/* ecx is zerorest also */
 	jmp .Lcopy_user_handle_tail
+	.previous
 
 	_ASM_EXTABLE_CPY(1b, 12b)
 SYM_FUNC_END(copy_user_enhanced_fast_string)
@@ -212,7 +225,6 @@ EXPORT_SYMBOL(copy_user_enhanced_fast_string)
  * Don't try to copy the tail if machine check happened
  *
  * Input:
- * eax trap number written by ex_handler_copy()
  * rdi destination
  * rsi source
  * rdx count
@@ -221,26 +233,13 @@ EXPORT_SYMBOL(copy_user_enhanced_fast_string)
  * eax uncopied bytes or 0 if successful.
  */
 SYM_CODE_START_LOCAL(.Lcopy_user_handle_tail)
-	cmp $X86_TRAP_MC,%eax
-	je 3f
-
 	movl %edx,%ecx
 1:	rep movsb
 2:	mov %ecx,%eax
 	ASM_CLAC
-	RET
-
-3:
-	movl %edx,%eax
-	ASM_CLAC
-	RET
+	ret
 
 	_ASM_EXTABLE_CPY(1b, 2b)
-
-.Lcopy_user_handle_align:
-	addl %ecx,%edx			/* ecx is zerorest also */
-	jmp .Lcopy_user_handle_tail
-
 SYM_CODE_END(.Lcopy_user_handle_tail)
 
 /*
@@ -349,8 +348,9 @@ SYM_FUNC_START(__copy_user_nocache)
 	xorl %eax,%eax
 	ASM_CLAC
 	sfence
-	RET
+	ret
 
+	.section .fixup,"ax"
 .L_fixup_4x8b_copy:
 	shll $6,%ecx
 	addl %ecx,%edx
@@ -366,6 +366,7 @@ SYM_FUNC_START(__copy_user_nocache)
 .L_fixup_handle_tail:
 	sfence
 	jmp .Lcopy_user_handle_tail
+	.previous
 
 	_ASM_EXTABLE_CPY(1b, .L_fixup_4x8b_copy)
 	_ASM_EXTABLE_CPY(2b, .L_fixup_4x8b_copy)

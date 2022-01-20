@@ -330,16 +330,16 @@ DEFINE_ASAN_SET_SHADOW(f8);
 
 static void __kasan_record_aux_stack(void *addr, bool can_alloc)
 {
-	struct slab *slab = kasan_addr_to_slab(addr);
+	struct page *page = kasan_addr_to_page(addr);
 	struct kmem_cache *cache;
 	struct kasan_alloc_meta *alloc_meta;
 	void *object;
 
-	if (is_kfence_address(addr) || !slab)
+	if (is_kfence_address(addr) || !(page && PageSlab(page)))
 		return;
 
-	cache = slab->slab_cache;
-	object = nearest_obj(cache, slab, addr);
+	cache = page->slab_cache;
+	object = nearest_obj(cache, page, addr);
 	alloc_meta = kasan_get_alloc_meta(cache, object);
 	if (!alloc_meta)
 		return;

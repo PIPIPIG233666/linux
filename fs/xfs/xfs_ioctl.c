@@ -372,7 +372,7 @@ int
 xfs_ioc_attr_list(
 	struct xfs_inode		*dp,
 	void __user			*ubuf,
-	size_t				bufsize,
+	int				bufsize,
 	int				flags,
 	struct xfs_attrlist_cursor __user *ucursor)
 {

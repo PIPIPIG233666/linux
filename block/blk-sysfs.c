@@ -16,7 +16,6 @@
 #include "blk.h"
 #include "blk-mq.h"
 #include "blk-mq-debugfs.h"
-#include "blk-mq-sched.h"
 #include "blk-wbt.h"
 #include "blk-throttle.h"
 
@@ -735,8 +734,7 @@ static void blk_free_queue_rcu(struct rcu_head *rcu_head)
 {
 	struct request_queue *q = container_of(rcu_head, struct request_queue,
 					       rcu_head);
-
-	kmem_cache_free(blk_get_queue_kmem_cache(blk_queue_has_srcu(q)), q);
+	kmem_cache_free(blk_requestq_cachep, q);
 }
 
 /* Unconfigure the I/O scheduler and dissociate from the cgroup controller. */
@@ -749,7 +747,7 @@ static void blk_exit_queue(struct request_queue *q)
 	 */
 	if (q->elevator) {
 		ioc_clear_queue(q);
-		elevator_exit(q);
+		__elevator_exit(q, q->elevator);
 	}
 
 	/*
@@ -787,14 +785,13 @@ static void blk_release_queue(struct kobject *kobj)
 
 	might_sleep();
 
-	if (q->poll_stat)
+	if (test_bit(QUEUE_FLAG_POLL_STATS, &q->queue_flags))
 		blk_stat_remove_callback(q, q->poll_cb);
 	blk_stat_free_callback(q->poll_cb);
 
-	blk_exit_queue(q);
-
 	blk_free_queue_stats(q->stats);
-	kfree(q->poll_stat);
+
+	blk_exit_queue(q);
 
 	blk_queue_free_zone_bitmaps(q);
 

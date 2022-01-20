@@ -1845,6 +1845,7 @@ static int tegra_vi_graph_init(struct tegra_vi *vi)
 	struct tegra_vi_channel *chan;
 	struct fwnode_handle *fwnode = dev_fwnode(vi->dev);
 	int ret;
+	struct fwnode_handle *remote = NULL;
 
 	/*
 	 * Walk the links to parse the full graph. Each channel will have
@@ -1856,15 +1857,10 @@ static int tegra_vi_graph_init(struct tegra_vi *vi)
 	 * next channels.
 	 */
 	list_for_each_entry(chan, &vi->vi_chans, list) {
-		struct fwnode_handle *ep, *remote;
-
-		ep = fwnode_graph_get_endpoint_by_id(fwnode,
-						     chan->portnos[0], 0, 0);
-		if (!ep)
+		remote = fwnode_graph_get_remote_node(fwnode, chan->portnos[0],
+						      0);
+		if (!remote)
 			continue;
-
-		remote = fwnode_graph_get_remote_port_parent(ep);
-		fwnode_handle_put(ep);
 
 		ret = tegra_vi_graph_parse_one(chan, remote);
 		fwnode_handle_put(remote);

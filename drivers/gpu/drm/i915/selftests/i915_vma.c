@@ -691,11 +691,7 @@ static int igt_vma_rotate_remap(void *arg)
 					}
 
 					i915_vma_unpin(vma);
-					err = i915_vma_unbind(vma);
-					if (err) {
-						pr_err("Unbinding returned %i\n", err);
-						goto out_object;
-					}
+
 					cond_resched();
 				}
 			}
@@ -852,11 +848,6 @@ static int igt_vma_partial(void *arg)
 
 				i915_vma_unpin(vma);
 				nvma++;
-				err = i915_vma_unbind(vma);
-				if (err) {
-					pr_err("Unbinding returned %i\n", err);
-					goto out_object;
-				}
 
 				cond_resched();
 			}
@@ -890,12 +881,6 @@ static int igt_vma_partial(void *arg)
 		}
 
 		i915_vma_unpin(vma);
-
-		err = i915_vma_unbind(vma);
-		if (err) {
-			pr_err("Unbinding returned %i\n", err);
-			goto out_object;
-		}
 
 		count = 0;
 		list_for_each_entry(vma, &obj->vma.list, obj_link)

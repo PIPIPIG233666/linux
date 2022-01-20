@@ -21,7 +21,7 @@
  */
 
 struct exception_table_entry {
-	int insn, fixup, data;
+	int insn, fixup, type;
 };
 struct pt_regs;
 
@@ -31,8 +31,8 @@ struct pt_regs;
 	do {							\
 		(a)->fixup = (b)->fixup + (delta);		\
 		(b)->fixup = (tmp).fixup - (delta);		\
-		(a)->data = (b)->data;				\
-		(b)->data = (tmp).data;				\
+		(a)->type = (b)->type;				\
+		(b)->type = (tmp).type;				\
 	} while (0)
 
 extern int fixup_exception(struct pt_regs *regs, int trapnr,

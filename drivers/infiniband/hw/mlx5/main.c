@@ -4422,7 +4422,7 @@ static int mlx5r_mp_probe(struct auxiliary_device *adev,
 	}
 	mutex_unlock(&mlx5_ib_multiport_mutex);
 
-	auxiliary_set_drvdata(adev, mpi);
+	dev_set_drvdata(&adev->dev, mpi);
 	return 0;
 }
 
@@ -4430,7 +4430,7 @@ static void mlx5r_mp_remove(struct auxiliary_device *adev)
 {
 	struct mlx5_ib_multiport_info *mpi;
 
-	mpi = auxiliary_get_drvdata(adev);
+	mpi = dev_get_drvdata(&adev->dev);
 	mutex_lock(&mlx5_ib_multiport_mutex);
 	if (mpi->ibdev)
 		mlx5_ib_unbind_slave_port(mpi->ibdev, mpi);
@@ -4480,7 +4480,7 @@ static int mlx5r_probe(struct auxiliary_device *adev,
 		return ret;
 	}
 
-	auxiliary_set_drvdata(adev, dev);
+	dev_set_drvdata(&adev->dev, dev);
 	return 0;
 }
 
@@ -4488,7 +4488,7 @@ static void mlx5r_remove(struct auxiliary_device *adev)
 {
 	struct mlx5_ib_dev *dev;
 
-	dev = auxiliary_get_drvdata(adev);
+	dev = dev_get_drvdata(&adev->dev);
 	__mlx5_ib_remove(dev, dev->profile, MLX5_IB_STAGE_MAX);
 }
 

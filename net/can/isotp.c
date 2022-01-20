@@ -119,8 +119,8 @@ enum {
 };
 
 struct tpcon {
-	unsigned int idx;
-	unsigned int len;
+	int idx;
+	int len;
 	u32 state;
 	u8 bs;
 	u8 sn;

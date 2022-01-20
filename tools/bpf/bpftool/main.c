@@ -31,7 +31,6 @@ bool block_mount;
 bool verifier_logs;
 bool relaxed_maps;
 bool use_loader;
-bool legacy_libbpf;
 struct btf *base_btf;
 struct hashmap *refs_table;
 
@@ -93,7 +92,6 @@ static int do_version(int argc, char **argv)
 		jsonw_name(json_wtr, "features");
 		jsonw_start_object(json_wtr);	/* features */
 		jsonw_bool_field(json_wtr, "libbfd", has_libbfd);
-		jsonw_bool_field(json_wtr, "libbpf_strict", !legacy_libbpf);
 		jsonw_bool_field(json_wtr, "skeletons", has_skeletons);
 		jsonw_end_object(json_wtr);	/* features */
 
@@ -105,10 +103,6 @@ static int do_version(int argc, char **argv)
 		printf("features:");
 		if (has_libbfd) {
 			printf(" libbfd");
-			nb_features++;
-		}
-		if (!legacy_libbpf) {
-			printf("%s libbpf_strict", nb_features++ ? "," : "");
 			nb_features++;
 		}
 		if (has_skeletons)
@@ -402,13 +396,9 @@ int main(int argc, char **argv)
 		{ "debug",	no_argument,	NULL,	'd' },
 		{ "use-loader",	no_argument,	NULL,	'L' },
 		{ "base-btf",	required_argument, NULL, 'B' },
-		{ "legacy",	no_argument,	NULL,	'l' },
 		{ 0 }
 	};
-	bool version_requested = false;
 	int opt, ret;
-
-	setlinebuf(stdout);
 
 	last_do_help = do_help;
 	pretty_output = false;
@@ -418,12 +408,11 @@ int main(int argc, char **argv)
 	bin_name = argv[0];
 
 	opterr = 0;
-	while ((opt = getopt_long(argc, argv, "VhpjfLmndB:l",
+	while ((opt = getopt_long(argc, argv, "VhpjfLmndB:",
 				  options, NULL)) >= 0) {
 		switch (opt) {
 		case 'V':
-			version_requested = true;
-			break;
+			return do_version(argc, argv);
 		case 'h':
 			return do_help(argc, argv);
 		case 'p':
@@ -465,9 +454,6 @@ int main(int argc, char **argv)
 		case 'L':
 			use_loader = true;
 			break;
-		case 'l':
-			legacy_libbpf = true;
-			break;
 		default:
 			p_err("unrecognized option '%s'", argv[optind - 1]);
 			if (json_output)
@@ -477,19 +463,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (!legacy_libbpf) {
-		ret = libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
-		if (ret)
-			p_err("failed to enable libbpf strict mode: %d", ret);
-	}
-
 	argc -= optind;
 	argv += optind;
 	if (argc < 0)
 		usage();
-
-	if (version_requested)
-		return do_version(argc, argv);
 
 	ret = cmd_select(cmds, argc, argv, do_help);
 

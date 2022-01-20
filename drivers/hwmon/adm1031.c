@@ -242,8 +242,9 @@ static int FAN_TO_REG(int reg, int div)
 static int AUTO_TEMP_MAX_TO_REG(int val, int reg, int pwm)
 {
 	int ret;
-	int range = ((val - AUTO_TEMP_MIN_FROM_REG(reg)) * 10) / (16 - pwm);
+	int range = val - AUTO_TEMP_MIN_FROM_REG(reg);
 
+	range = ((val - AUTO_TEMP_MIN_FROM_REG(reg))*10)/(16 - pwm);
 	ret = ((reg & 0xf8) |
 	       (range < 10000 ? 0 :
 		range < 20000 ? 1 :

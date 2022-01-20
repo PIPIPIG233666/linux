@@ -58,23 +58,36 @@ bool __wrap_is_acpi_device_node(const struct fwnode_handle *fwnode)
 }
 EXPORT_SYMBOL(__wrap_is_acpi_device_node);
 
-int __wrap_acpi_table_parse_cedt(enum acpi_cedt_type id,
-				 acpi_tbl_entry_handler_arg handler_arg,
-				 void *arg)
+acpi_status __wrap_acpi_get_table(char *signature, u32 instance,
+				  struct acpi_table_header **out_table)
 {
-	int index, rc;
+	int index;
 	struct cxl_mock_ops *ops = get_cxl_mock_ops(&index);
+	acpi_status status;
 
 	if (ops)
-		rc = ops->acpi_table_parse_cedt(id, handler_arg, arg);
+		status = ops->acpi_get_table(signature, instance, out_table);
 	else
-		rc = acpi_table_parse_cedt(id, handler_arg, arg);
+		status = acpi_get_table(signature, instance, out_table);
 
 	put_cxl_mock_ops(index);
 
-	return rc;
+	return status;
 }
-EXPORT_SYMBOL_NS_GPL(__wrap_acpi_table_parse_cedt, ACPI);
+EXPORT_SYMBOL(__wrap_acpi_get_table);
+
+void __wrap_acpi_put_table(struct acpi_table_header *table)
+{
+	int index;
+	struct cxl_mock_ops *ops = get_cxl_mock_ops(&index);
+
+	if (ops)
+		ops->acpi_put_table(table);
+	else
+		acpi_put_table(table);
+	put_cxl_mock_ops(index);
+}
+EXPORT_SYMBOL(__wrap_acpi_put_table);
 
 acpi_status __wrap_acpi_evaluate_integer(acpi_handle handle,
 					 acpi_string pathname,
@@ -156,4 +169,3 @@ __wrap_nvdimm_bus_register(struct device *dev,
 EXPORT_SYMBOL_GPL(__wrap_nvdimm_bus_register);
 
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(ACPI);

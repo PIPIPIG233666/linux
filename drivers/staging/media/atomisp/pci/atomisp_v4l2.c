@@ -447,8 +447,7 @@ const struct atomisp_dfs_config dfs_config_cht_soc = {
 	.dfs_table_size = ARRAY_SIZE(dfs_rules_cht_soc),
 };
 
-int atomisp_video_init(struct atomisp_video_pipe *video, const char *name,
-		       unsigned int run_mode)
+int atomisp_video_init(struct atomisp_video_pipe *video, const char *name)
 {
 	int ret;
 	const char *direction;
@@ -479,7 +478,6 @@ int atomisp_video_init(struct atomisp_video_pipe *video, const char *name,
 		 "ATOMISP ISP %s %s", name, direction);
 	video->vdev.release = video_device_release_empty;
 	video_set_drvdata(&video->vdev, video->isp);
-	video->default_run_mode = run_mode;
 
 	return 0;
 }
@@ -713,15 +711,15 @@ static int atomisp_mrfld_power(struct atomisp_device *isp, bool enable)
 
 	dev_dbg(isp->dev, "IUNIT power-%s.\n", enable ? "on" : "off");
 
-	/* WA for P-Unit, if DVFS enabled, ISP timeout observed */
+	/*WA:Enable DVFS*/
 	if (IS_CHT && enable)
-		punit_ddr_dvfs_enable(false);
+		punit_ddr_dvfs_enable(true);
 
 	/*
 	 * FIXME:WA for ECS28A, with this sleep, CTS
 	 * android.hardware.camera2.cts.CameraDeviceTest#testCameraDeviceAbort
 	 * PASS, no impact on other platforms
-	 */
+	*/
 	if (IS_BYT && enable)
 		msleep(10);
 
@@ -729,7 +727,7 @@ static int atomisp_mrfld_power(struct atomisp_device *isp, bool enable)
 	iosf_mbi_modify(BT_MBI_UNIT_PMC, MBI_REG_READ, MRFLD_ISPSSPM0,
 			val, MRFLD_ISPSSPM0_ISPSSC_MASK);
 
-	/* WA:Enable DVFS */
+	/*WA:Enable DVFS*/
 	if (IS_CHT && !enable)
 		punit_ddr_dvfs_enable(true);
 
@@ -1184,7 +1182,6 @@ static void atomisp_unregister_entities(struct atomisp_device *isp)
 
 	v4l2_device_unregister(&isp->v4l2_dev);
 	media_device_unregister(&isp->media_dev);
-	media_device_cleanup(&isp->media_dev);
 }
 
 static int atomisp_register_entities(struct atomisp_device *isp)
@@ -1569,7 +1566,6 @@ static int atomisp_pci_probe(struct pci_dev *pdev, const struct pci_device_id *i
 	dev_dbg(&pdev->dev, "atomisp mmio base: %p\n", isp->base);
 
 	rt_mutex_init(&isp->mutex);
-	rt_mutex_init(&isp->loading);
 	mutex_init(&isp->streamoff_mutex);
 	spin_lock_init(&isp->lock);
 
@@ -1637,7 +1633,12 @@ static int atomisp_pci_probe(struct pci_dev *pdev, const struct pci_device_id *i
 		pdev->d3cold_delay = 0;
 		break;
 	case ATOMISP_PCI_DEVICE_SOC_ANN:
-		isp->media_dev.hw_revision = (	 ATOMISP_HW_REVISION_ISP2401
+		isp->media_dev.hw_revision = (
+#ifdef ISP2401_NEW_INPUT_SYSTEM
+						 ATOMISP_HW_REVISION_ISP2401
+#else
+						 ATOMISP_HW_REVISION_ISP2401_LEGACY
+#endif
 						 << ATOMISP_HW_REVISION_SHIFT);
 		isp->media_dev.hw_revision |= pdev->revision < 2 ?
 					      ATOMISP_HW_STEPPING_A0 : ATOMISP_HW_STEPPING_B0;
@@ -1645,7 +1646,12 @@ static int atomisp_pci_probe(struct pci_dev *pdev, const struct pci_device_id *i
 		isp->hpll_freq = HPLL_FREQ_1600MHZ;
 		break;
 	case ATOMISP_PCI_DEVICE_SOC_CHT:
-		isp->media_dev.hw_revision = (	 ATOMISP_HW_REVISION_ISP2401
+		isp->media_dev.hw_revision = (
+#ifdef ISP2401_NEW_INPUT_SYSTEM
+						 ATOMISP_HW_REVISION_ISP2401
+#else
+						 ATOMISP_HW_REVISION_ISP2401_LEGACY
+#endif
 						 << ATOMISP_HW_REVISION_SHIFT);
 		isp->media_dev.hw_revision |= pdev->revision < 2 ?
 					      ATOMISP_HW_STEPPING_A0 : ATOMISP_HW_STEPPING_B0;
@@ -1742,8 +1748,6 @@ static int atomisp_pci_probe(struct pci_dev *pdev, const struct pci_device_id *i
 		pci_write_config_dword(pdev, MRFLD_PCI_CSI_AFE_TRIM_CONTROL, csi_afe_trim);
 	}
 
-	rt_mutex_lock(&isp->loading);
-
 	err = atomisp_initialize_modules(isp);
 	if (err < 0) {
 		dev_err(&pdev->dev, "atomisp_initialize_modules (%d)\n", err);
@@ -1801,8 +1805,6 @@ static int atomisp_pci_probe(struct pci_dev *pdev, const struct pci_device_id *i
 	release_firmware(isp->firmware);
 	isp->firmware = NULL;
 	isp->css_env.isp_css_fw.data = NULL;
-	isp->ready = true;
-	rt_mutex_unlock(&isp->loading);
 
 	atomisp_drvfs_init(isp);
 
@@ -1822,7 +1824,6 @@ wdt_work_queue_fail:
 register_entities_fail:
 	atomisp_uninitialize_modules(isp);
 initialize_modules_fail:
-	rt_mutex_unlock(&isp->loading);
 	cpu_latency_qos_remove_request(&isp->pm_qos);
 	atomisp_msi_irq_uninit(isp);
 	pci_free_irq_vectors(pdev);

@@ -262,12 +262,13 @@ void bnxt_re_query_fw_str(struct ib_device *ibdev, char *str)
 int bnxt_re_query_pkey(struct ib_device *ibdev, u32 port_num,
 		       u16 index, u16 *pkey)
 {
-	if (index > 0)
-		return -EINVAL;
+	struct bnxt_re_dev *rdev = to_bnxt_re_dev(ibdev, ibdev);
 
-	*pkey = IB_DEFAULT_PKEY_FULL;
+	/* Ignore port_num */
 
-	return 0;
+	memset(pkey, 0, sizeof(*pkey));
+	return bnxt_qplib_get_pkey(&rdev->qplib_res,
+				   &rdev->qplib_res.pkey_tbl, index, pkey);
 }
 
 int bnxt_re_query_gid(struct ib_device *ibdev, u32 port_num,

@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #include "test_progs.h"
 #include "cgroup_helpers.h"
+#include "bpf_rlimit.h"
 #include <argp.h>
 #include <pthread.h>
 #include <sched.h>
@@ -472,11 +473,11 @@ static struct prog_test_def prog_test_defs[] = {
 #include <prog_tests/tests.h>
 #undef DEFINE_TEST
 };
-static const int prog_test_cnt = ARRAY_SIZE(prog_test_defs);
+const int prog_test_cnt = ARRAY_SIZE(prog_test_defs);
 
 const char *argp_program_version = "test_progs 0.1";
 const char *argp_program_bug_address = "<bpf@vger.kernel.org>";
-static const char argp_program_doc[] = "BPF selftests test runner";
+const char argp_program_doc[] = "BPF selftests test runner";
 
 enum ARG_KEYS {
 	ARG_TEST_NUM = 'n',
@@ -938,7 +939,7 @@ static void *dispatch_thread(void *ctx)
 {
 	struct dispatch_data *data = ctx;
 	int sock_fd;
-	FILE *log_fp = NULL;
+	FILE *log_fd = NULL;
 
 	sock_fd = data->sock_fd;
 
@@ -1001,8 +1002,8 @@ static void *dispatch_thread(void *ctx)
 
 			/* collect all logs */
 			if (msg_test_done.test_done.have_log) {
-				log_fp = open_memstream(&result->log_buf, &result->log_cnt);
-				if (!log_fp)
+				log_fd = open_memstream(&result->log_buf, &result->log_cnt);
+				if (!log_fd)
 					goto error;
 
 				while (true) {
@@ -1013,12 +1014,12 @@ static void *dispatch_thread(void *ctx)
 					if (msg_log.type != MSG_TEST_LOG)
 						goto error;
 
-					fprintf(log_fp, "%s", msg_log.test_log.log_buf);
+					fprintf(log_fd, "%s", msg_log.test_log.log_buf);
 					if (msg_log.test_log.is_last)
 						break;
 				}
-				fclose(log_fp);
-				log_fp = NULL;
+				fclose(log_fd);
+				log_fd = NULL;
 			}
 			/* output log */
 			{
@@ -1044,8 +1045,8 @@ error:
 	if (env.debug)
 		fprintf(stderr, "[%d]: Protocol/IO error: %s.\n", data->worker_id, strerror(errno));
 
-	if (log_fp)
-		fclose(log_fp);
+	if (log_fd)
+		fclose(log_fd);
 done:
 	{
 		struct msg msg_exit;
@@ -1197,10 +1198,10 @@ static int server_main(void)
 		env.sub_succ_cnt += result->sub_succ_cnt;
 	}
 
-	print_all_error_logs();
-
 	fprintf(stdout, "Summary: %d/%d PASSED, %d SKIPPED, %d FAILED\n",
 		env.succ_cnt, env.sub_succ_cnt, env.skip_cnt, env.fail_cnt);
+
+	print_all_error_logs();
 
 	/* reap all workers */
 	for (i = 0; i < env.workers; i++) {
@@ -1341,6 +1342,7 @@ int main(int argc, char **argv)
 
 	/* Use libbpf 1.0 API mode */
 	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+
 	libbpf_set_print(libbpf_print_fn);
 
 	srand(time(NULL));
@@ -1482,10 +1484,10 @@ int main(int argc, char **argv)
 	if (env.list_test_names)
 		goto out;
 
-	print_all_error_logs();
-
 	fprintf(stdout, "Summary: %d/%d PASSED, %d SKIPPED, %d FAILED\n",
 		env.succ_cnt, env.sub_succ_cnt, env.skip_cnt, env.fail_cnt);
+
+	print_all_error_logs();
 
 	close(env.saved_netns_fd);
 out:

@@ -189,7 +189,7 @@ bool set_channel(struct vnt_private *priv, struct ieee80211_channel *ch)
 
 	/* Init Synthesizer Table */
 	if (priv->bEnablePSMode)
-		rf_write_wake_prog_syn(priv, priv->byRFType, ch->hw_value);
+		RFvWriteWakeProgSyn(priv, priv->byRFType, ch->hw_value);
 
 	bb_software_reset(priv);
 

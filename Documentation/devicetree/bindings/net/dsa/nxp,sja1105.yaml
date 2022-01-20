@@ -52,8 +52,10 @@ properties:
 
     patternProperties:
       "^mdio@[0-1]$":
-        $ref: /schemas/net/mdio.yaml#
-        unevaluatedProperties: false
+        type: object
+
+        allOf:
+          - $ref: "http://devicetree.org/schemas/net/mdio.yaml#"
 
         properties:
           compatible:

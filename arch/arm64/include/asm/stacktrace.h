@@ -47,10 +47,6 @@ struct stack_info {
  * @prev_type:   The type of stack this frame record was on, or a synthetic
  *               value of STACK_TYPE_UNKNOWN. This is used to detect a
  *               transition from one stack to another.
- *
- * @kr_cur:      When KRETPROBES is selected, holds the kretprobe instance
- *               associated with the most recently encountered replacement lr
- *               value.
  */
 struct stackframe {
 	unsigned long fp;
@@ -63,6 +59,9 @@ struct stackframe {
 #endif
 };
 
+extern int unwind_frame(struct task_struct *tsk, struct stackframe *frame);
+extern void walk_stackframe(struct task_struct *tsk, struct stackframe *frame,
+			    bool (*fn)(void *, unsigned long), void *data);
 extern void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk,
 			   const char *loglvl);
 
@@ -146,5 +145,8 @@ static inline bool on_accessible_stack(const struct task_struct *tsk,
 
 	return false;
 }
+
+void start_backtrace(struct stackframe *frame, unsigned long fp,
+		     unsigned long pc);
 
 #endif	/* __ASM_STACKTRACE_H */

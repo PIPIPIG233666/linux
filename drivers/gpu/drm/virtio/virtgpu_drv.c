@@ -27,6 +27,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/console.h>
 #include <linux/pci.h>
 #include <linux/poll.h>
 #include <linux/wait.h>
@@ -103,7 +104,7 @@ static int virtio_gpu_probe(struct virtio_device *vdev)
 	struct drm_device *dev;
 	int ret;
 
-	if (drm_firmware_drivers_only() && virtio_gpu_modeset == -1)
+	if (vgacon_text_force() && virtio_gpu_modeset == -1)
 		return -EINVAL;
 
 	if (virtio_gpu_modeset == 0)
